@@ -17,17 +17,19 @@
 
 struct sockaddr_in server_addr;
 
+int islogged = 0;
+
 /* ---- UDP Protocol ---- */
 
 void udp_send_message(char *msg) {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd == -1) {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     ssize_t bytes = sendto(fd, msg, sizeof(msg), 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
     if (bytes == -1) {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     printf("Messsage sent (%ld bytes).\n", bytes);
@@ -62,7 +64,7 @@ int validate_password(char *str) {
 
 /* ---- Commands ---- */
 
-void login(char *command) {
+void command_login(char *command) {
     char uid[7], pwd[9];
     sscanf(command, "login %s %s\n", uid, pwd);
     uid[6] = pwd[8] = '\0';
@@ -82,6 +84,15 @@ void login(char *command) {
     udp_send_message(msg);
 }
 
+void command_exit() {
+    if (islogged) {
+        printf("Please execute logout from the Auction Server first.\n");
+        return;
+    }
+
+    exit(EXIT_SUCCESS);
+}
+
 /* ---- Command Listener ---- */
 
 void parse_command() {
@@ -89,18 +100,28 @@ void parse_command() {
 
     while (1) {
         printf("> ");
-        fgets(buffer, sizeof(buffer), stdin);
+        
+        if (!fgets(buffer, sizeof(buffer), stdin)) {
+            exit(1);
+        }
 
-        int n = strchr(buffer, ' ') - buffer;
+        char *space = strchr(buffer, ' ');
+        int n;
+
+        if (space) {
+            n = strchr(buffer, ' ') - buffer;
+        } else {
+            n = strlen(buffer) - 1;
+        }
         
         if (!strncmp(buffer, "login", n)) {
-            login(buffer);
+            command_login(buffer);
         } else if (!strncmp(buffer, "logout", n)) {
 
         } else if (!strncmp(buffer, "unregister", n)) {
             
         } else if (!strncmp(buffer, "exit", n)) {
-            
+            command_exit();
         } else if (!strncmp(buffer, "open", n)) {
             
         } else if (!strncmp(buffer, "close", n)) {
@@ -137,7 +158,7 @@ int main(int argc, char **argv) {
             server_addr.sin_port = htons(atoi(argv[++i]));
         } else {
             printf("tu es estupido vai po crl");
-            exit(0);
+            exit(EXIT_FAILURE);
         }
     }
 
