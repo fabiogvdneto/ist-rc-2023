@@ -9,6 +9,8 @@
 #include <errno.h>
 #include <ctype.h>
 
+#define DEBUG 1
+
 #define PORT_FLAG "-p"
 #define IP_FLAG "-n"
 
@@ -18,6 +20,9 @@
 struct sockaddr_in server_addr;
 
 int islogged = 0;
+
+char user_uid[7];
+char user_pwd[9];
 
 /* ---- UDP Protocol ---- */
 
@@ -32,17 +37,18 @@ void udp_send_message(char *msg) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Messsage sent (%ld bytes).\n", bytes);
+    if (DEBUG) printf("[UDP SENT] %s (%ld bytes)\n", msg, bytes);
+    
     close(fd);
 }
 
 /* ---- Validators ---- */
 
 int validate_user_uid(char *str) {
-    if (strlen(str) != 6) return 0;
-    
+    char *end = str + 6;
+
     while (*str != '\0') {
-        if (!isdigit(*str++)) {
+        if ((str == end) || !isdigit(*str++)) {
             return 0;
         }
     }
@@ -51,10 +57,10 @@ int validate_user_uid(char *str) {
 }
 
 int validate_password(char *str) {
-    if (strlen(str) != 8) return 0;
+    char *end = str + 8;
 
     while (*str != '\0') {
-        if (!isalnum(*str++)) {
+        if ((str == end) || !isalnum(*str++)) {
             return 0;
         }
     }
@@ -65,23 +71,35 @@ int validate_password(char *str) {
 /* ---- Commands ---- */
 
 void command_login(char *command) {
-    char uid[7], pwd[9];
-    sscanf(command, "login %s %s\n", uid, pwd);
-    uid[6] = pwd[8] = '\0';
+    sscanf(command, "login %s %s\n", user_uid, user_pwd);
 
-    if (!validate_user_uid(uid)) {
+    if (!validate_user_uid(user_uid)) {
         printf("The UID must be a 6-digit IST student number.\n");
         return;
     }
 
-    if (!validate_password(pwd)) {
+    if (!validate_password(user_pwd)) {
         printf("The password must be composed of 8 alphanumeric characters.\n");
         return;
     }
 
     char msg[20];
-    sprintf(msg, "LIN %s %s", uid, pwd);
+    sprintf(msg, "LIN %s %s", user_uid, user_pwd);
     udp_send_message(msg);
+
+    // missing: response from AS
+
+    islogged = 1;
+}
+
+void command_logout() {
+    char msg[20];
+    sprintf(msg, "LOU %s %s", user_uid, user_pwd);
+    udp_send_message(msg);
+
+    // missing: response from AS
+
+    islogged = 0;
 }
 
 void command_exit() {
@@ -117,7 +135,7 @@ void parse_command() {
         if (!strncmp(buffer, "login", n)) {
             command_login(buffer);
         } else if (!strncmp(buffer, "logout", n)) {
-
+            command_logout();
         } else if (!strncmp(buffer, "unregister", n)) {
             
         } else if (!strncmp(buffer, "exit", n)) {
