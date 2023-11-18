@@ -26,31 +26,35 @@ char user_pwd[9];
 
 /* ---- UDP Protocol ---- */
 
-void udp_send_message(char *msg, char *rsp) {
+int udp_socket() {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
+
     if (fd == -1) {
         exit(EXIT_FAILURE);
     }
 
+    return fd;
+}
+
+void udp_send(int fd, char *msg) {
     ssize_t bytes = sendto(fd, msg, sizeof(msg), 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
+
     if (bytes == -1) {
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP sent] %s (%ld bytes)\n", msg, bytes);
+    if (DEBUG) printf("[UDP] %s (sent %ld bytes)\n", msg, bytes);
+}
 
-    if (rsp) {
-        socklen_t addrlen = sizeof(server_addr);
-        bytes = recvfrom(fd, rsp, sizeof(rsp), 0, (struct sockaddr*) &server_addr, &addrlen);
+void udp_recv(int fd, char *rsp) {
+    socklen_t addrlen = sizeof(server_addr);
+    ssize_t bytes = recvfrom(fd, rsp, sizeof(rsp), 0, (struct sockaddr*) &server_addr, &addrlen);
 
-        if (bytes == -1) {
-            exit(EXIT_FAILURE);
-        }
-
-        if (DEBUG) printf("[UDP recv] %s (%ld bytes)\n", msg, bytes);
+    if (bytes == -1) {
+        exit(EXIT_FAILURE);
     }
-    
-    close(fd);
+
+    if (DEBUG) printf("[UDP recv] %s (received %ld bytes)\n", rsp, bytes);
 }
 
 /* ---- Validators ---- */
@@ -84,6 +88,10 @@ int validate_password(char *str) {
 void command_login(char *command) {
     sscanf(command, "login %s %s\n", user_uid, user_pwd);
 
+    if (islogged) {
+        printf("You are already logged in.\n");
+    }
+
     if (!validate_user_uid(user_uid)) {
         printf("The UID must be a 6-digit IST student number.\n");
         return;
@@ -94,30 +102,66 @@ void command_login(char *command) {
         return;
     }
 
-    char msg[20];  // message to be send
-    char rsp[100]; // response (message received)
+    char msg[50];
     sprintf(msg, "LIN %s %s", user_uid, user_pwd);
-    udp_send_message(msg, rsp);
 
-    // missing: response from AS
+    int fd = udp_socket();
+    udp_send(fd, msg);
+    // udp_recv(fd, msg);
+    close(fd);
 
-    islogged = 1;
+    if (!strcmp(msg, "RLI NOK")) {
+        printf("Incorrect login attempt.\n");
+    } else if (!strcmp(msg, "RLI OK")) {
+        printf("Successfull login.\n");
+        islogged = 1;
+    } else if (!strcmp(msg, "RLI REG")) {
+        printf("New user registered.\n");
+        islogged = 1;
+    }
 }
 
 void command_logout() {
-    char msg[20];  // message to be send
-    char rsp[100]; // response (message received)
+    char msg[50];  // message to be send
     sprintf(msg, "LOU %s %s", user_uid, user_pwd);
-    udp_send_message(msg, rsp);
+    
+    int fd = udp_socket();
+    udp_send(fd, msg);
+    // udp_recv(fd, msg);
+    close(fd);
 
-    // missing: response from AS
+    if (!strcmp(msg, "RLO OK")) {
+        printf("Successfull logout.\n");
+        islogged = 0;
+    } else if (!strcmp(msg, "RLO NOK")) {
+        printf("Unknown user.\n");
+    } else if (!strcmp(msg, "RLO UNR")) {
+        printf("User not logged in.\n");
+    }
+}
 
-    islogged = 0;
+void command_unregister() {
+    char msg[50];
+    sprintf(msg, "UNR %s %s", user_uid, user_pwd);
+
+    int fd = udp_socket();
+    udp_send(fd, msg);
+    // udp_recv(fd, msg);
+    close(fd);
+
+    if (!strcmp(msg, "RUR OK")) {
+        printf("Successfull unregister.\n");
+        islogged = 0;
+    } else if (!strcmp(msg, "RUR NOK")) {
+        printf("Unknown user.\n");
+    } else if (!strcmp(msg, "RUR UNR")) {
+        printf("Incorrect unregister attempt.\n");
+    }
 }
 
 void command_exit() {
     if (islogged) {
-        printf("Please execute logout from the Auction Server first.\n");
+        printf("Please logout first.\n");
         return;
     }
 
