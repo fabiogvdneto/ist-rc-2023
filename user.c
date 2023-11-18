@@ -194,7 +194,7 @@ void parse_command() {
         } else if (!strncmp(buffer, "logout", n)) {
             command_logout();
         } else if (!strncmp(buffer, "unregister", n)) {
-            
+            command_unregister();
         } else if (!strncmp(buffer, "exit", n)) {
             command_exit();
         } else if (!strncmp(buffer, "open", n)) {
