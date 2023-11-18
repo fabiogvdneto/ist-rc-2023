@@ -26,7 +26,7 @@ char user_pwd[9];
 
 /* ---- UDP Protocol ---- */
 
-void udp_send_message(char *msg) {
+void udp_send_message(char *msg, char *rsp) {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd == -1) {
         exit(EXIT_FAILURE);
@@ -37,7 +37,18 @@ void udp_send_message(char *msg) {
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP SENT] %s (%ld bytes)\n", msg, bytes);
+    if (DEBUG) printf("[UDP sent] %s (%ld bytes)\n", msg, bytes);
+
+    if (rsp) {
+        socklen_t addrlen = sizeof(server_addr);
+        bytes = recvfrom(fd, rsp, sizeof(rsp), 0, (struct sockaddr*) &server_addr, &addrlen);
+
+        if (bytes == -1) {
+            exit(EXIT_FAILURE);
+        }
+
+        if (DEBUG) printf("[UDP recv] %s (%ld bytes)\n", msg, bytes);
+    }
     
     close(fd);
 }
@@ -83,9 +94,10 @@ void command_login(char *command) {
         return;
     }
 
-    char msg[20];
+    char msg[20];  // message to be send
+    char rsp[100]; // response (message received)
     sprintf(msg, "LIN %s %s", user_uid, user_pwd);
-    udp_send_message(msg);
+    udp_send_message(msg, rsp);
 
     // missing: response from AS
 
@@ -93,9 +105,10 @@ void command_login(char *command) {
 }
 
 void command_logout() {
-    char msg[20];
+    char msg[20];  // message to be send
+    char rsp[100]; // response (message received)
     sprintf(msg, "LOU %s %s", user_uid, user_pwd);
-    udp_send_message(msg);
+    udp_send_message(msg, rsp);
 
     // missing: response from AS
 
