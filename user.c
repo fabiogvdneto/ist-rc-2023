@@ -14,8 +14,10 @@
 #define PORT_FLAG "-p"
 #define IP_FLAG "-n"
 
-#define DEFAULT_PORT 58069
+#define DEFAULT_PORT 58019
 #define DEFAULT_IP "127.0.0.1"
+
+#define BUFFER_LEN 100
 
 struct sockaddr_in server_addr;
 
@@ -36,30 +38,34 @@ int udp_socket() {
     return fd;
 }
 
-void udp_send(int fd, char *msg) {
-    ssize_t bytes = sendto(fd, msg, sizeof(msg), 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
+void udp_send(int fd, char *msg, size_t n) {
+    ssize_t bytes = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
     if (bytes == -1) {
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP] %s (sent %ld bytes)\n", msg, bytes);
+    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", bytes, n, msg);
 }
 
-void udp_recv(int fd, char *rsp) {
+void udp_recv(int fd, char *rsp, size_t n) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t bytes = recvfrom(fd, rsp, sizeof(rsp), 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t bytes = recvfrom(fd, rsp, n, 0, (struct sockaddr*) &server_addr, &addrlen);
 
     if (bytes == -1) {
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP recv] %s (received %ld bytes)\n", rsp, bytes);
+    rsp[n-1] = '\0';
+
+    if (DEBUG) printf("[UDP] Got %ld bytes: %s", bytes, rsp);
 }
 
 /* ---- Validators ---- */
 
 int validate_user_uid(char *str) {
+    if (strlen(str) != 6) return 0;
+
     char *end = str + 6;
 
     while (*str != '\0') {
@@ -72,6 +78,8 @@ int validate_user_uid(char *str) {
 }
 
 int validate_password(char *str) {
+    if (strlen(str) != 8) return 0;
+
     char *end = str + 8;
 
     while (*str != '\0') {
@@ -102,59 +110,59 @@ void command_login(char *command) {
         return;
     }
 
-    char msg[50];
-    sprintf(msg, "LIN %s %s", user_uid, user_pwd);
+    char buffer[50];
+    sprintf(buffer, "LIN %s %s\n", user_uid, user_pwd);
 
     int fd = udp_socket();
-    udp_send(fd, msg);
-    // udp_recv(fd, msg);
+    udp_send(fd, buffer, strlen(buffer)+1);
+    udp_recv(fd, buffer, sizeof(buffer));
     close(fd);
 
-    if (!strcmp(msg, "RLI NOK")) {
+    if (!strcmp(buffer, "RLI NOK\n")) {
         printf("Incorrect login attempt.\n");
-    } else if (!strcmp(msg, "RLI OK")) {
+    } else if (!strcmp(buffer, "RLI OK\n")) {
         printf("Successfull login.\n");
         islogged = 1;
-    } else if (!strcmp(msg, "RLI REG")) {
+    } else if (!strcmp(buffer, "RLI REG\n")) {
         printf("New user registered.\n");
         islogged = 1;
     }
 }
 
 void command_logout() {
-    char msg[50];  // message to be send
-    sprintf(msg, "LOU %s %s", user_uid, user_pwd);
+    char buffer[50];  // message to be send
+    sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     
     int fd = udp_socket();
-    udp_send(fd, msg);
-    // udp_recv(fd, msg);
+    udp_send(fd, buffer, strlen(buffer)+1);
+    udp_recv(fd, buffer, sizeof(buffer));
     close(fd);
 
-    if (!strcmp(msg, "RLO OK")) {
+    if (!strcmp(buffer, "RLO OK\n")) {
         printf("Successfull logout.\n");
         islogged = 0;
-    } else if (!strcmp(msg, "RLO NOK")) {
+    } else if (!strcmp(buffer, "RLO NOK\n")) {
         printf("Unknown user.\n");
-    } else if (!strcmp(msg, "RLO UNR")) {
+    } else if (!strcmp(buffer, "RLO UNR\n")) {
         printf("User not logged in.\n");
     }
 }
 
 void command_unregister() {
-    char msg[50];
-    sprintf(msg, "UNR %s %s", user_uid, user_pwd);
+    char buffer[50];
+    sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
 
     int fd = udp_socket();
-    udp_send(fd, msg);
-    // udp_recv(fd, msg);
+    udp_send(fd, buffer, strlen(buffer)+1);
+    udp_recv(fd, buffer, sizeof(buffer));
     close(fd);
 
-    if (!strcmp(msg, "RUR OK")) {
+    if (!strcmp(buffer, "RUR OK")) {
         printf("Successfull unregister.\n");
         islogged = 0;
-    } else if (!strcmp(msg, "RUR NOK")) {
+    } else if (!strcmp(buffer, "RUR NOK")) {
         printf("Unknown user.\n");
-    } else if (!strcmp(msg, "RUR UNR")) {
+    } else if (!strcmp(buffer, "RUR UNR")) {
         printf("Incorrect unregister attempt.\n");
     }
 }
@@ -180,11 +188,11 @@ void parse_command() {
             exit(1);
         }
 
-        char *space = strchr(buffer, ' ');
         int n;
+        char *c = strchr(buffer, ' ');
 
-        if (space) {
-            n = strchr(buffer, ' ') - buffer;
+        if (c) {
+            n = c - buffer;
         } else {
             n = strlen(buffer) - 1;
         }
