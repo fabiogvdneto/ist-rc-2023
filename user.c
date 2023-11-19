@@ -68,10 +68,6 @@ int validate_user_uid(char *str) {
 
     char *end = str + 6;
 
-    if (strlen(str) != 6) {
-        return 0;
-    }
-
     while (*str != '\0') {
         if ((str == end) || !isdigit(*str++)) {
             return 0;
@@ -85,10 +81,6 @@ int validate_password(char *str) {
     if (strlen(str) != 8) return 0;
 
     char *end = str + 8;
-
-    if (strlen(str) != 8) {
-        return 0;
-    }
 
     while (*str != '\0') {
         if ((str == end) || !isalnum(*str++)) {
