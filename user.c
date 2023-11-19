@@ -62,6 +62,10 @@ void udp_recv(int fd, char *rsp) {
 int validate_user_uid(char *str) {
     char *end = str + 6;
 
+    if (strlen(str) != 6) {
+        return 0;
+    }
+
     while (*str != '\0') {
         if ((str == end) || !isdigit(*str++)) {
             return 0;
@@ -73,6 +77,10 @@ int validate_user_uid(char *str) {
 
 int validate_password(char *str) {
     char *end = str + 8;
+
+    if (strlen(str) != 8) {
+        return 0;
+    }
 
     while (*str != '\0') {
         if ((str == end) || !isalnum(*str++)) {
@@ -107,7 +115,7 @@ void command_login(char *command) {
 
     int fd = udp_socket();
     udp_send(fd, msg);
-    // udp_recv(fd, msg);
+    // zudp_recv(fd, msg);
     close(fd);
 
     if (!strcmp(msg, "RLI NOK")) {
