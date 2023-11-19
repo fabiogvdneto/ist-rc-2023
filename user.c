@@ -23,8 +23,8 @@ struct sockaddr_in server_addr;
 
 int islogged = 0;
 
-char user_uid[7];
-char user_pwd[9];
+char user_uid[6];
+char user_pwd[8];
 
 /* ---- UDP Protocol ---- */
 
@@ -32,6 +32,7 @@ int udp_socket() {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (fd == -1) {
+        printf("Error: could not open socket.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -42,6 +43,7 @@ void udp_send(int fd, char *msg, size_t n) {
     ssize_t bytes = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
     if (bytes == -1) {
+        printf("Error: could not send message to client.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -53,12 +55,13 @@ void udp_recv(int fd, char *rsp, size_t n) {
     ssize_t bytes = recvfrom(fd, rsp, n, 0, (struct sockaddr*) &server_addr, &addrlen);
 
     if (bytes == -1) {
+        printf("Error: could not receive message from client.\n");
         exit(EXIT_FAILURE);
     }
 
-    rsp[n-1] = '\0';
+    rsp[bytes] = '\0';
 
-    if (DEBUG) printf("[UDP] Got %ld bytes: %s", bytes, rsp);
+    if (DEBUG) printf("[UDP] Received %ld bytes: %s", bytes, rsp);
 }
 
 /* ---- Validators ---- */
@@ -98,6 +101,7 @@ void command_login(char *command) {
 
     if (islogged) {
         printf("You are already logged in.\n");
+        return;
     }
 
     if (!validate_user_uid(user_uid)) {
@@ -169,7 +173,7 @@ void command_unregister() {
 
 void command_exit() {
     if (islogged) {
-        printf("Please logout first.\n");
+        printf("You need to logout first.\n");
         return;
     }
 
@@ -178,48 +182,50 @@ void command_exit() {
 
 /* ---- Command Listener ---- */
 
-void parse_command() {
-    char buffer[100];
+void extract_label(char *command, char *label, int n) {
+    for (int i = 1; (i < n) && (*command != ' ') && (*command != '\n'); i++) {
+        *(label++) = *(command++);
+    }
+
+    *label = '\0';
+}
+
+void command_listener() {
+    char buffer[80], label[20];
 
     while (1) {
         printf("> ");
         
         if (!fgets(buffer, sizeof(buffer), stdin)) {
-            exit(1);
+            printf("Error: could not read from stdin.\n");
+            exit(EXIT_FAILURE);
         }
 
-        int n;
-        char *c = strchr(buffer, ' ');
-
-        if (c) {
-            n = c - buffer;
-        } else {
-            n = strlen(buffer) - 1;
-        }
+        extract_label(buffer, label, sizeof(label));
         
-        if (!strncmp(buffer, "login", n)) {
+        if (!strcmp(label, "login")) {
             command_login(buffer);
-        } else if (!strncmp(buffer, "logout", n)) {
+        } else if (!strcmp(label, "logout")) {
             command_logout();
-        } else if (!strncmp(buffer, "unregister", n)) {
+        } else if (!strcmp(label, "unregister")) {
             command_unregister();
-        } else if (!strncmp(buffer, "exit", n)) {
+        } else if (!strcmp(label, "exit")) {
             command_exit();
-        } else if (!strncmp(buffer, "open", n)) {
+        } else if (!strcmp(label, "open")) {
             
-        } else if (!strncmp(buffer, "close", n)) {
+        } else if (!strcmp(label, "close")) {
             
-        } else if (!strncmp(buffer, "myactions", n) || !strncmp(buffer, "ma", n)) {
+        } else if (!strcmp(label, "myactions") || !strcmp(label, "ma")) {
             
-        } else if (!strncmp(buffer, "mybids", n) || !strncmp(buffer, "mb", n)) {
+        } else if (!strcmp(label, "mybids") || !strcmp(label, "mb")) {
             
-        } else if (!strncmp(buffer, "list", n) || !strncmp(buffer, "l", n)) {
+        } else if (!strcmp(label, "list") || !strcmp(label, "l")) {
             
-        } else if (!strncmp(buffer, "show_asset", n) || !strncmp(buffer, "sa", n)) {
+        } else if (!strcmp(label, "show_asset") || !strcmp(label, "sa")) {
             
-        } else if (!strncmp(buffer, "bid", n)) {
+        } else if (!strcmp(label, "bid")) {
             
-        } else if (!strncmp(buffer, "show_record", n)) {
+        } else if (!strcmp(label, "show_record")) {
             
         } else {
             printf("Command not found.\n");
@@ -245,6 +251,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    parse_command();
+    command_listener();
     return 1;
 }
