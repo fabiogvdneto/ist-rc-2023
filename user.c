@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+#include <fcntl.h>
 
 /* TODOs
 
@@ -258,9 +260,27 @@ void command_open(char *command) {
 
     sscanf(command, "open %s %s %s %s\n", name, asset_fname, start_value, timeactive);
 
-    char buffer[BUFFER_LEN];
-    sprintf(buffer, "OPA %s %s %s %s %s %s %s %s\n", user_uid, user_pwd,
-                    name, start_value, timeactive, asset_fname);
+    int fd = open(asset_fname, O_RDONLY);
+    if (fd == -1) {
+        exit(EXIT_FAILURE);
+    }
+    
+    struct stat statbuf;
+    fstat(fd, &statbuf);
+
+    char data[statbuf.st_size];
+    ssize_t bytes;
+    for (ssize_t i = 0; i < statbuf.st_size; i += bytes) {
+        ssize_t bytes = read(fd, data, statbuf.st_size - i);
+        if (bytes == -1) {
+            printf("Error: could not write message to server.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    char buffer[BUFFER_LEN + statbuf.st_size];
+    sprintf(buffer, "OPA %s %s %s %s %s %s %ld %s\n", user_uid, user_pwd,
+                    name, start_value, timeactive, asset_fname, statbuf.st_size, data);
 }
 
 /* ---- Command Listener ---- */
