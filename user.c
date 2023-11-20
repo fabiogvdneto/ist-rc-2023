@@ -30,6 +30,13 @@
 
 #define BUFFER_LEN 128
 
+#define USER_UID_LEN 6
+#define USER_PWD_LEN 8
+#define AUCTION_NAME_LEN 10
+#define STARTVALUE_LEN 6
+#define DURATION_LEN 5
+#define AID_LEN 3
+
 struct sockaddr_in server_addr;
 
 int islogged = 0;
@@ -136,7 +143,7 @@ int validate_user_uid(char *str) {
         }
     }
 
-    return (i == 6);
+    return (i == USER_UID_LEN);
 }
 
 int validate_password(char *str) {
@@ -148,11 +155,60 @@ int validate_password(char *str) {
         }
     }
 
-    return (i == 8);
+    return (i == USER_PWD_LEN);
+}
+
+int validate_auction_name(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!isalnum(str[i++])) {
+            return 0;
+        }
+    }
+
+    return (i <= AUCTION_NAME_LEN);
+}
+
+int validate_startvalue(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!isdigit(str[i++])) {
+            return 0;
+        }
+    }
+
+    return (i <= STARTVALUE_LEN);
+}
+
+int validate_duration(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!isdigit(str[i++])) {
+            return 0;
+        }
+    }
+
+    return (i <= DURATION_LEN);
+}
+
+int validate_AID(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!isdigit(str[i++])) {
+            return 0;
+        }
+    }
+
+    return (i = AID_LEN);
 }
 
 /* ---- Commands ---- */
 
+/* login UID password */
 void command_login(char *command) {
     char temp_uid[BUFFER_LEN];
     char temp_pwd[BUFFER_LEN];
@@ -195,9 +251,10 @@ void command_login(char *command) {
     }
 }
 
+/* logout */
 void command_logout() {
     if (!islogged) {
-        printf("User not logged in.");
+        printf("User not logged in.\n");
         return;
     }
 
@@ -219,9 +276,10 @@ void command_logout() {
     }
 }
 
+/* unregister */
 void command_unregister() {
     if (!islogged) {
-        printf("User not logged in.");
+        printf("User not logged in.\n");
         return;
     }
     
@@ -233,16 +291,17 @@ void command_unregister() {
     udp_recv(fd, buffer);
     close(fd);
 
-    if (!strcmp(buffer, "RUR OK")) {
+    if (!strcmp(buffer, "RUR OK\n")) {
         printf("Successfull unregister.\n");
         islogged = 0;
-    } else if (!strcmp(buffer, "RUR NOK")) {
+    } else if (!strcmp(buffer, "RUR NOK\n")) {
         printf("Unknown user.\n");
-    } else if (!strcmp(buffer, "RUR UNR")) {
+    } else if (!strcmp(buffer, "RUR UNR\n")) {
         printf("Incorrect unregister attempt.\n");
     }
 }
 
+/* exit */
 void command_exit() {
     if (islogged) {
         printf("You need to logout first.\n");
@@ -252,13 +311,34 @@ void command_exit() {
     exit(EXIT_SUCCESS);
 }
 
+/* open name asset_fname start_value timeactive */
 void command_open(char *command) {
+    if (!islogged) {
+        printf("User not logged in.");
+        return;
+    }
+    
     char name[BUFFER_LEN];
     char asset_fname[BUFFER_LEN];
     char start_value[BUFFER_LEN];
     char timeactive[BUFFER_LEN];
-
+    char AID[AID_LEN];
     sscanf(command, "open %s %s %s %s\n", name, asset_fname, start_value, timeactive);
+
+    if (!validate_auction_name(name)) {
+        printf("The auction name must be composed of up to 10 alphanumeric characters.\n");
+        return;
+    }
+
+    if (!validate_startvalue(start_value)) {
+        printf("The auction start value must be composed of up to 6 digits.\n");
+        return;
+    }
+    
+    if (!validate_duration(timeactive)) {
+        printf("The auction duration must be composed of up to 5 digits.\n");
+        return;
+    }
 
     int fd = open(asset_fname, O_RDONLY);
     if (fd == -1) {
@@ -267,20 +347,43 @@ void command_open(char *command) {
     
     struct stat statbuf;
     fstat(fd, &statbuf);
+    printf("%ld\n", statbuf.st_size);
+    if ((lseek(fd, 0, SEEK_SET)) == -1) {
+        printf("Error: could not reposition file descriptor.\n");
+        exit(EXIT_FAILURE);
+    }
 
     char data[statbuf.st_size];
-    ssize_t bytes;
-    for (ssize_t i = 0; i < statbuf.st_size; i += bytes) {
-        ssize_t bytes = read(fd, data, statbuf.st_size - i);
+    ssize_t total_bytes = 0;
+    while (total_bytes < statbuf.st_size) {
+        ssize_t bytes = read(fd, data + total_bytes, statbuf.st_size - total_bytes);
         if (bytes == -1) {
             printf("Error: could not write message to server.\n");
             exit(EXIT_FAILURE);
         }
+        total_bytes += bytes;
     }
+    close(fd);
 
     char buffer[BUFFER_LEN + statbuf.st_size];
     sprintf(buffer, "OPA %s %s %s %s %s %s %ld %s\n", user_uid, user_pwd,
                     name, start_value, timeactive, asset_fname, statbuf.st_size, data);
+    
+    fd = tcp_socket();
+    tcp_conn(fd);
+    tcp_write(fd, buffer);
+    tcp_read(fd, buffer);
+    close(fd);
+
+    if (!strncmp(buffer, "ROA OK", 6)) {
+        sscanf(command, "ROA OK %s\n", AID);
+        printf("New action opened: %s.\n", AID);
+        islogged = 0;
+    } else if (!strcmp(buffer, "ROA NOK\n")) {
+        printf("Auction could not be started.\n");
+    } else if (!strcmp(buffer, "RUR NLG\n")) {
+        printf("User not logged in.\n");
+    }
 }
 
 /* ---- Command Listener ---- */
@@ -315,7 +418,7 @@ void command_listener() {
         } else if (!strcmp(label, "exit")) {
             command_exit();
         } else if (!strcmp(label, "open")) {
-            
+            command_open(buffer);
         } else if (!strcmp(label, "close")) {
             
         } else if (!strcmp(label, "myactions") || !strcmp(label, "ma")) {
