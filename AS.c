@@ -17,13 +17,11 @@
 #define DEFAULT_PORT 58019
 #define DEFAULT_IP "127.0.0.1"
 
+#define BUFFER_LEN 128
+
 struct sockaddr_in server_addr;
 
 int verbose = 0;
-int islogged = 0;
-
-char user_uid[7];
-char user_pwd[9];
 
 /* ---- UDP Protocol ---- */
 
@@ -38,7 +36,8 @@ int udp_socket() {
     return fd;
 }
 
-void udp_send(int fd, char *msg, size_t n) {
+void udp_send(int fd, char *msg) {
+    size_t n = strlen(msg);
     ssize_t bytes = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
     if (bytes == -1) {
@@ -49,16 +48,16 @@ void udp_send(int fd, char *msg, size_t n) {
     if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", bytes, n, msg);
 }
 
-void udp_recv(int fd, char *rsp, size_t n) {
+void udp_recv(int fd, char *rsp) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t bytes = recvfrom(fd, rsp, n, 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t bytes = recvfrom(fd, rsp, (BUFFER_LEN-1), 0, (struct sockaddr*) &server_addr, &addrlen);
 
     if (bytes == -1) {
         printf("Error: could not receive message from client.\n");
         exit(EXIT_FAILURE);
     }
 
-    rsp[n-1] = '\0';
+    rsp[bytes] = '\0';
 
     if (DEBUG) printf("[UDP] Received %ld bytes: %s", bytes, rsp);
 }
@@ -71,40 +70,40 @@ void udp_bind(int fd) {
 
 /* ---- Client Listener ---- */
 
+void extract_label(char *command, char *label, int n) {
+    for (int i = 1; (i < n) && (*command != ' ') && (*command != '\n'); i++) {
+        *(label++) = *(command++);
+    }
+
+    *label = '\0';
+}
+
 void client_listener() {
-    char msg[50];
+    char buffer[BUFFER_LEN], label[5];
 
     int fd = udp_socket();
     udp_bind(fd);
     
     while (1) {
-        udp_recv(fd, msg, sizeof(msg));
-
-        char *c = strchr(msg, ' ');
-        int n;
-
-        if (c) {
-            n = c - msg;
-        } else {
-            n = strlen(msg) - 1;
-        }
+        udp_recv(fd, buffer);
+        extract_label(buffer, label, sizeof(label));
         
-        if (!strncmp(msg, "LIN", n)) {
-            udp_send(fd, "RLI OK\n", 8);
-        } else if (!strncmp(msg, "LOU", n)) {
-            udp_send(fd, "RLO OK\n", 8);
-        } else if (!strncmp(msg, "UNR", n)) {
-            udp_send(fd, "RUR OK\n", 8);
-        } else if (!strncmp(msg, "LMA", n)) {
-            udp_send(fd, "RMA OK\n", 8);
-        } else if (!strncmp(msg, "LMB", n)) {
-            udp_send(fd, "RMB OK\n", 8);
-        } else if (!strncmp(msg, "LST", n)) {
-            udp_send(fd, "RST OK\n", 8);
-        } else if (!strncmp(msg, "SRC", n)) {
-            udp_send(fd, "RRC OK\n", 8);
+        if (!strcmp(label, "LIN")) {
+            udp_send(fd, "RLI OK\n");
+        } else if (!strcmp(label, "LOU")) {
+            udp_send(fd, "RLO OK\n");
+        } else if (!strcmp(label, "UNR")) {
+            udp_send(fd, "RUR OK\n");
+        } else if (!strcmp(label, "LMA")) {
+            udp_send(fd, "RMA OK\n");
+        } else if (!strcmp(label, "LMB")) {
+            udp_send(fd, "RMB OK\n");
+        } else if (!strcmp(label, "LST")) {
+            udp_send(fd, "RST OK\n");
+        } else if (!strcmp(label, "SRC")) {
+            udp_send(fd, "RRC OK\n");
         } else {
-            printf("Received unreconizable message: %s\n", msg);
+            printf("Received unreconizable message: %s\n", buffer);
         }
     }
 
