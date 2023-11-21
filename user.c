@@ -152,7 +152,6 @@ int file_open(char *fname, int o_flags) {
 }
 
 void file_read(int fd, char *buffer, ssize_t size) {
-    size--; // Last character is '\0'.
     ssize_t count = 0;
     ssize_t res = 0;
 
@@ -164,8 +163,6 @@ void file_read(int fd, char *buffer, ssize_t size) {
             exit(EXIT_FAILURE);
         }
     }
-
-    buffer[count] = '\0';
 
     if (DEBUG) printf("[IMG] Read %ld/%ld bytes.\n", count, size);
 }
