@@ -20,13 +20,19 @@
 
 */
 
+/* tejo.tecnico.ulisboa.pt (193.136.138.142:58011)
+
+Command: ./user -n 193.136.138.142 -p 58011
+
+*/
+
 #define DEBUG 1
 
 #define PORT_FLAG "-p"
 #define IP_FLAG "-n"
 
-#define DEFAULT_PORT 58019
-#define DEFAULT_IP "127.0.0.1"
+#define DEFAULT_PORT 58011 // 58019
+#define DEFAULT_IP "193.136.138.142" // "127.0.0.1"
 
 #define BUFFER_LEN 128
 
@@ -59,28 +65,28 @@ int udp_socket() {
 
 void udp_send(int fd, char *msg) {
     size_t n = strlen(msg);
-    ssize_t bytes = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
+    ssize_t res = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
-    if (bytes == -1) {
+    if (res == -1) {
         printf("Error: could not send message to server.\n");
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", bytes, n, msg);
+    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
 }
 
 void udp_recv(int fd, char *buffer) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t bytes = recvfrom(fd, buffer, (BUFFER_LEN-1), 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t res = recvfrom(fd, buffer, (BUFFER_LEN-1), 0, (struct sockaddr*) &server_addr, &addrlen);
 
-    if (bytes == -1) {
+    if (res == -1) {
         printf("Error: could not receive message from server.\n");
         exit(EXIT_FAILURE);
     }
 
-    buffer[bytes] = '\0';
+    buffer[res] = '\0';
 
-    if (DEBUG) printf("[UDP] Received %ld bytes: %s", bytes, buffer);
+    if (DEBUG) printf("[UDP] Received %ld bytes: %s", res, buffer);
 }
 
 /* ---- TCP Protocol ---- */
@@ -103,36 +109,90 @@ void tcp_conn(int fd) {
     }
 }
 
-void tcp_write(int fd, char *msg) {
-    size_t n = strlen(msg);
-    ssize_t bytes = write(fd, msg, n);
+void tcp_write(int fd, char *msg, ssize_t n) {
+    ssize_t count = 0;
+    ssize_t res = 0;
 
-    // Missing: while (1) { write... }
+    while ((count += res) < n) {
+        res = write(fd, msg, n);
 
-    if (bytes == -1) {
-        printf("Error: could not write message to server.\n");
-        exit(EXIT_FAILURE);
+        if (res == -1) {
+            printf("Error: could not write message to server.\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    if (DEBUG) printf("[TCP] Sent %ld/%ld bytes: %s", bytes, n, msg);
+    if (DEBUG) printf("[TCP] Sent %ld/%ld bytes: %s", count, n, msg);
 }
 
-void tcp_read(int fd, char *buffer) {
-    ssize_t bytes = read(fd, buffer, BUFFER_LEN);
+void tcp_read(int fd, char *buffer, ssize_t n) {
+    n--; // Last character is '\0'.
+    ssize_t count = 0;
+    ssize_t res = 0;
 
-    // Missing: while (1) { read... }
+    while ((count += res) < n) {
+        res = read(fd, buffer + count, n - count);
+        
+        if (res == -1) {
+            printf("Error: could not write message to server.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    if (bytes == -1) {
-        printf("Error: could not write message to server.\n");
+    buffer[count] = '\0';
+
+    if (DEBUG) printf("[TCP] Received %ld bytes: %s", count, buffer);
+}
+
+/* ---- File Handling ---- */
+
+off_t file_size(int fd) {
+    struct stat statbuf;
+    fstat(fd, &statbuf);
+    return statbuf.st_size;
+}
+
+int file_open(char *fname, int o_flags) {
+    int fd = open(fname, o_flags);
+
+    if (fd == -1) {
+        printf("Error: could not open file '%s'.\n", fname);
         exit(EXIT_FAILURE);
     }
 
-    buffer[bytes] = '\0';
+    return fd;
+}
 
-    if (DEBUG) printf("[TCP] Received %ld bytes: %s", bytes, buffer);
+void file_read(int fd, char *buffer, ssize_t size) {
+    size--; // Last character is '\0'.
+    ssize_t count = 0;
+    ssize_t res = 0;
+
+    while ((count += res) < size) {
+        res = read(fd, buffer + count, size - count);
+
+        if (res == -1) {
+            printf("Error: could not read from file.");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    buffer[count] = '\0';
+
+    if (DEBUG) printf("[IMG] Read %ld/%ld bytes.\n", count, size);
 }
 
 /* ---- Validators ---- */
+
+int starts_with(char *prefix, char *str) {
+    while (*prefix != '\0') {
+        if ((*str == '\0') || *(prefix++) != *(str++)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
 
 int validate_user_uid(char *str) {
     int i = 0;
@@ -208,7 +268,7 @@ int validate_AID(char *str) {
 
 /* ---- Commands ---- */
 
-/* login UID password */
+/* login <UID> <password> */
 void command_login(char *command) {
     char temp_uid[BUFFER_LEN];
     char temp_pwd[BUFFER_LEN];
@@ -258,7 +318,7 @@ void command_logout() {
         return;
     }
 
-    char buffer[BUFFER_LEN];  // message to be send
+    char buffer[BUFFER_LEN];
     sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     
     int fd = udp_socket();
@@ -311,10 +371,10 @@ void command_exit() {
     exit(EXIT_SUCCESS);
 }
 
-/* open name asset_fname start_value timeactive */
+/* open <name> <asset_fname> <start_value> <timeactive> */
 void command_open(char *command) {
     if (!islogged) {
-        printf("User not logged in.");
+        printf("User not logged in.\n");
         return;
     }
     
@@ -340,42 +400,23 @@ void command_open(char *command) {
         return;
     }
 
-    int fd = open(asset_fname, O_RDONLY);
-    if (fd == -1) {
-        exit(EXIT_FAILURE);
-    }
-    
-    struct stat statbuf;
-    fstat(fd, &statbuf);
-    printf("%ld\n", statbuf.st_size);
-    if ((lseek(fd, 0, SEEK_SET)) == -1) {
-        printf("Error: could not reposition file descriptor.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    char data[statbuf.st_size];
-    ssize_t total_bytes = 0;
-    while (total_bytes < statbuf.st_size) {
-        ssize_t bytes = read(fd, data + total_bytes, statbuf.st_size - total_bytes);
-        if (bytes == -1) {
-            printf("Error: could not write message to server.\n");
-            exit(EXIT_FAILURE);
-        }
-        total_bytes += bytes;
-    }
+    int fd = file_open(asset_fname, O_RDONLY);
+    off_t size = file_size(fd);
+    char data[size];
+    file_read(fd, data, size+1);
     close(fd);
 
-    char buffer[BUFFER_LEN + statbuf.st_size];
+    char buffer[BUFFER_LEN + size];
     sprintf(buffer, "OPA %s %s %s %s %s %s %ld %s\n", user_uid, user_pwd,
-                    name, start_value, timeactive, asset_fname, statbuf.st_size, data);
+                    name, start_value, timeactive, asset_fname, size, data);
     
     fd = tcp_socket();
     tcp_conn(fd);
-    tcp_write(fd, buffer);
-    tcp_read(fd, buffer);
+    tcp_write(fd, buffer, size+1);
+    tcp_read(fd, buffer, BUFFER_LEN);
     close(fd);
 
-    if (!strncmp(buffer, "ROA OK", 6)) {
+    if (!starts_with("ROA OK ", buffer)) {
         sscanf(command, "ROA OK %s\n", AID);
         printf("New action opened: %s.\n", AID);
         islogged = 0;
@@ -452,7 +493,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], PORT_FLAG)) {
             server_addr.sin_port = htons(atoi(argv[++i]));
         } else {
-            printf("tu es estupido vai po crl");
+            printf("tu es estupido vai po crl\n");
             exit(EXIT_FAILURE);
         }
     }
