@@ -17,6 +17,7 @@
 - Timers (setsockopt()).
 - Signals (SIGSEGV, SIGINT ctrl-c, SIGCHLD server-side, SIGPIPE).
 - Um processo para cada cliente.
+- Create some tests
 
 */
 
