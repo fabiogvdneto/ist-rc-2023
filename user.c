@@ -494,7 +494,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], PORT_FLAG)) {
             server_addr.sin_port = htons(atoi(argv[++i]));
         } else {
-            printf("tu es estupido vai po crl\n");
+            printf("A sua pessoa apresenta-se néscia, encaminhe-se no sentido do orgão genital masculino.\n");
             exit(EXIT_FAILURE);
         }
     }
