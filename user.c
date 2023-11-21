@@ -78,7 +78,7 @@ void udp_send(int fd, char *msg) {
 
 void udp_recv(int fd, char *buffer) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t res = recvfrom(fd, buffer, (BUFFER_LEN-1), 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t res = recvfrom(fd, buffer, BUFFER_LEN-1, 0, (struct sockaddr*) &server_addr, &addrlen);
 
     if (res == -1) {
         printf("Error: could not receive message from server.\n");
@@ -111,38 +111,25 @@ void tcp_conn(int fd) {
 }
 
 void tcp_write(int fd, char *msg, ssize_t n) {
-    ssize_t count = 0;
-    ssize_t res = 0;
+    ssize_t res = write(fd, msg, n);
 
-    while ((count += res) < n) {
-        res = write(fd, msg, n);
-
-        if (res == -1) {
-            printf("Error: could not write message to server.\n");
-            exit(EXIT_FAILURE);
-        }
+    if (res == -1) {
+        printf("Error: could not write message to server.\n");
+        exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[TCP] Sent %ld/%ld bytes: %s", count, n, msg);
+    if (DEBUG) printf("[TCP] Sent %ld/%ld bytes.", res, n);
 }
 
 void tcp_read(int fd, char *buffer, ssize_t n) {
-    n--; // Last character is '\0'.
-    ssize_t count = 0;
-    ssize_t res = 0;
-
-    while ((count += res) < n) {
-        res = read(fd, buffer + count, n - count);
+    ssize_t res = read(fd, buffer, n);
         
-        if (res == -1) {
-            printf("Error: could not write message to server.\n");
-            exit(EXIT_FAILURE);
-        }
+    if (res == -1) {
+        printf("Error: could not write message to server.\n");
+        exit(EXIT_FAILURE);
     }
 
-    buffer[count] = '\0';
-
-    if (DEBUG) printf("[TCP] Received %ld bytes: %s", count, buffer);
+    if (DEBUG) printf("[TCP] Received %ld bytes.", res);
 }
 
 /* ---- File Handling ---- */
@@ -442,8 +429,6 @@ void command_listener() {
     char buffer[BUFFER_LEN], label[20];
 
     while (1) {
-        printf("> ");
-        
         if (!fgets(buffer, sizeof(buffer), stdin)) {
             printf("Error: could not read from stdin.\n");
             exit(EXIT_FAILURE);

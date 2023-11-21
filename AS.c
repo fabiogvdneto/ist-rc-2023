@@ -38,28 +38,26 @@ int udp_socket() {
 
 void udp_send(int fd, char *msg) {
     size_t n = strlen(msg);
-    ssize_t bytes = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
+    ssize_t res = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
-    if (bytes == -1) {
-        printf("Error: could not send message to client.\n");
+    if (res == -1) {
+        printf("Error: could not send message to server.\n");
         exit(EXIT_FAILURE);
     }
 
-    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", bytes, n, msg);
+    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
 }
 
-void udp_recv(int fd, char *rsp) {
+void udp_recv(int fd, char *buffer) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t bytes = recvfrom(fd, rsp, (BUFFER_LEN-1), 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t res = recvfrom(fd, buffer, BUFFER_LEN, 0, (struct sockaddr*) &server_addr, &addrlen);
 
-    if (bytes == -1) {
-        printf("Error: could not receive message from client.\n");
+    if (res == -1) {
+        printf("Error: could not receive message from server.\n");
         exit(EXIT_FAILURE);
     }
 
-    rsp[bytes] = '\0';
-
-    if (DEBUG) printf("[UDP] Received %ld bytes: %s", bytes, rsp);
+    if (DEBUG) printf("[UDP] Received %ld bytes: %s", res, buffer);
 }
 
 void udp_bind(int fd) {
