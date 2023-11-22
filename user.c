@@ -111,25 +111,33 @@ void tcp_conn(int fd) {
 }
 
 void tcp_write(int fd, char *msg, ssize_t n) {
-    ssize_t res = write(fd, msg, n);
+    ssize_t res;
 
-    if (res == -1) {
-        printf("Error: could not write message to server.\n");
-        exit(EXIT_FAILURE);
+    for (ssize_t count = 0; count < n; count += res) {
+        res = write(fd, (msg+count), (n-count));
+
+        if (res == -1) {
+            printf("Error: could not write message to server.\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    if (DEBUG) printf("[TCP] Sent %ld/%ld bytes.", res, n);
+    if (DEBUG) printf("[TCP] Sent %ld bytes.\n", n);
 }
 
 void tcp_read(int fd, char *buffer, ssize_t n) {
-    ssize_t res = read(fd, buffer, n);
-        
-    if (res == -1) {
-        printf("Error: could not write message to server.\n");
-        exit(EXIT_FAILURE);
+    ssize_t res;
+
+    for (ssize_t count = 0; count < n; count += res) {
+        res = read(fd, (buffer+count), (n-count));
+
+        if (res == -1) {
+            printf("Error: could not read message from server.\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    if (DEBUG) printf("[TCP] Received %ld bytes.", res);
+    if (DEBUG) printf("[TCP] Received %ld bytes.\n", n);
 }
 
 /* ---- File Handling ---- */
