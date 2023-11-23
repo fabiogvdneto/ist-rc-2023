@@ -415,6 +415,7 @@ void command_open(char *command) {
 
     if (tcp_conn(serverfd, server_addr) == -1) {
         close(fd);
+        close(serverfd);
         panic("Error: could not connect to server.\n");
     }
 
