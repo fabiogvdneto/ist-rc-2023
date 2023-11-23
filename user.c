@@ -209,7 +209,7 @@ void command_login(char *command) {
 
     char buffer[BUFFER_LEN];
 
-    int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_uid);
+    int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
         panic("sprintf() at login");
     }
@@ -241,6 +241,10 @@ void command_login(char *command) {
     } else if (str_starts_with("RLI REG\n", buffer)) {
         printf("New user registered.\n");
         islogged = 1;
+    } else if ((DEBUG) && str_starts_with("RLI ERR\n", buffer)) {
+        printf("Incorrect request message syntax\n");
+    } else if ((DEBUG) && str_starts_with("ERR\n", buffer)) {
+        printf("Unexpected protocol message received\n");
     }
 
     if (islogged) {
@@ -472,7 +476,7 @@ void command_open(char *command) {
             return;
         }
 
-        printf("New action opened: %s.\n", aid);
+        printf("New auction opened: %s.\n", aid);
     } else if (str_starts_with("ROA NOK\n", buffer)) {
         printf("Auction could not be started.\n");
     } else if (str_starts_with("RUR NLG\n", buffer)) {
