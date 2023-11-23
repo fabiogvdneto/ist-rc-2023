@@ -99,7 +99,7 @@ ssize_t tcp_recv(int sockfd, char *buffer, ssize_t nbytes) {
 
 /* ---- Validators ---- */
 
-int starts_with(char *prefix, char *str) {
+int str_starts_with(char *prefix, char *str) {
     while (*prefix != '\0') {
         if ((*str == '\0') || *(prefix++) != *(str++)) {
             return 0;
@@ -459,7 +459,7 @@ void command_open(char *command) {
 
     close(serverfd);
 
-    if (starts_with("ROA OK ", buffer)) {
+    if (str_starts_with("ROA OK ", buffer)) {
         char aid[AID_LEN+1];
 
         sscanf(buffer, "ROA OK %s\n", aid);
@@ -479,47 +479,37 @@ void command_open(char *command) {
 
 /* ---- Command Listener ---- */
 
-void extract_label(char *command, char *label, int n) {
-    for (int i = 1; (i < n) && (*command != ' ') && (*command != '\n'); i++) {
-        *(label++) = *(command++);
-    }
-
-    *label = '\0';
-}
-
 void command_listener() {
-    char buffer[BUFFER_LEN], label[20];
+    char buffer[BUFFER_LEN];
 
     while (1) {
         if (!fgets(buffer, sizeof(buffer), stdin)) {
             panic("Error: could not read from stdin.\n");
         }
-
-        extract_label(buffer, label, sizeof(label));
         
-        if (!strcmp(label, "login")) {
+        if (str_starts_with("login ", buffer)) {
             command_login(buffer);
-        } else if (!strcmp(label, "logout")) {
+        } else if (str_starts_with("logout\n", buffer)) {
             command_logout();
-        } else if (!strcmp(label, "unregister")) {
+        } else if (str_starts_with("unregister\n", buffer)) {
             command_unregister();
-        } else if (!strcmp(label, "exit")) {
+        } else if (str_starts_with("exit\n", buffer)) {
             command_exit();
-        } else if (!strcmp(label, "open")) {
+        } else if (str_starts_with("open ", buffer)) {
             command_open(buffer);
-        } else if (!strcmp(label, "close")) {
+        } else if (str_starts_with("close ", buffer)) {
             
-        } else if (!strcmp(label, "myactions") || !strcmp(label, "ma")) {
+        } else if (str_starts_with("myactions\n", buffer) || str_starts_with("ma\n", buffer)) {
             
-        } else if (!strcmp(label, "mybids") || !strcmp(label, "mb")) {
+        } else if (str_starts_with("mybids\n", buffer) || str_starts_with("mb\n", buffer)) {
             
-        } else if (!strcmp(label, "list") || !strcmp(label, "l")) {
+        } else if (str_starts_with("list\n", buffer) || str_starts_with("l\n", buffer)) {
             
-        } else if (!strcmp(label, "show_asset") || !strcmp(label, "sa")) {
+        } else if (str_starts_with("show_asset ", buffer) || str_starts_with("sa ", buffer)) {
             
-        } else if (!strcmp(label, "bid")) {
+        } else if (str_starts_with("bid ", buffer)) {
             
-        } else if (!strcmp(label, "show_record")) {
+        } else if (str_starts_with("show_record ", buffer)) {
             
         } else {
             printf("Command not found.\n");
