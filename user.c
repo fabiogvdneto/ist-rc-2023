@@ -9,6 +9,12 @@
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+
+/* Signals */
+#include <signal.h>
+
+/* Files */
+#include <sys/mman.h>
 #include <fcntl.h>
 
 /* TODOs
@@ -29,150 +35,66 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 #define DEBUG 1
 
-#define PORT_FLAG "-p"
-#define IP_FLAG "-n"
+#define FLAG_PORT "-p"
+#define FLAG_IP "-n"
 
 #define DEFAULT_PORT 58011 // 58019
 #define DEFAULT_IP "193.136.138.142" // "127.0.0.1"
 
 #define BUFFER_LEN 128
+#define PACKET_SIZE 2048
 
 #define USER_UID_LEN 6
 #define USER_PWD_LEN 8
 #define AUCTION_NAME_LEN 10
+#define ASSET_FNAME_LEN 24
 #define STARTVALUE_LEN 6
 #define DURATION_LEN 5
 #define AID_LEN 3
 
 struct sockaddr_in server_addr;
 
+char user_uid[USER_UID_LEN+1];
+char user_pwd[USER_PWD_LEN+1];
+
 int islogged = 0;
 
-char user_uid[7];
-char user_pwd[9];
+void panic(char *msg) {
+    fprintf(stderr, "%s\n", msg);
+    exit(EXIT_FAILURE);
+}
 
 /* ---- UDP Protocol ---- */
 
 int udp_socket() {
-    int fd = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (fd == -1) {
-        printf("Error: could not open UDP socket.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return fd;
+    return socket(AF_INET, SOCK_DGRAM, 0);
 }
 
-void udp_send(int fd, char *msg) {
-    size_t n = strlen(msg);
-    ssize_t res = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
-
-    if (res == -1) {
-        printf("Error: could not send message to server.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
+ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in addr) {
+    return sendto(sockfd, buffer, nbytes, 0, (struct sockaddr*) &addr, sizeof(addr));
 }
 
-void udp_recv(int fd, char *buffer) {
-    socklen_t addrlen = sizeof(server_addr);
-    ssize_t res = recvfrom(fd, buffer, BUFFER_LEN-1, 0, (struct sockaddr*) &server_addr, &addrlen);
-
-    if (res == -1) {
-        printf("Error: could not receive message from server.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    buffer[res] = '\0';
-
-    if (DEBUG) printf("[UDP] Received %ld bytes: %s", res, buffer);
+ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in addr) {
+    socklen_t addrlen = sizeof(addr);
+    return recvfrom(sockfd, buffer, nbytes, 0, (struct sockaddr*) &addr, &addrlen);
 }
 
 /* ---- TCP Protocol ---- */
 
 int tcp_socket() {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (fd == -1) {
-        printf("Error: could not open TCP socket.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return fd;
+    return socket(AF_INET, SOCK_STREAM, 0);
 }
 
-void tcp_conn(int fd) {
-    if (connect(fd, (struct sockaddr*) &server_addr, sizeof(server_addr))) {
-        printf("Error: could not connect to server socket.");
-        exit(EXIT_FAILURE);
-    }
+int tcp_conn(int sockfd, struct sockaddr_in addr) {
+    return connect(sockfd, (struct sockaddr*) &addr, sizeof(addr));
 }
 
-void tcp_write(int fd, char *msg, ssize_t n) {
-    ssize_t res;
-
-    for (ssize_t count = 0; count < n; count += res) {
-        res = write(fd, (msg+count), (n-count));
-
-        if (res == -1) {
-            printf("Error: could not write message to server.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (DEBUG) printf("[TCP] Sent %ld bytes.\n", n);
+ssize_t tcp_send(int sockfd, char *buffer, ssize_t nbytes) {
+    return write(sockfd, buffer, nbytes);
 }
 
-void tcp_read(int fd, char *buffer, ssize_t n) {
-    ssize_t res;
-
-    for (ssize_t count = 0; count < n; count += res) {
-        res = read(fd, (buffer+count), (n-count));
-
-        if (res == -1) {
-            printf("Error: could not read message from server.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (DEBUG) printf("[TCP] Received %ld bytes.\n", n);
-}
-
-/* ---- File Handling ---- */
-
-off_t file_size(int fd) {
-    struct stat statbuf;
-    fstat(fd, &statbuf);
-    return statbuf.st_size;
-}
-
-int file_open(char *fname, int o_flags) {
-    int fd = open(fname, o_flags);
-
-    if (fd == -1) {
-        printf("Error: could not open file '%s'.\n", fname);
-        exit(EXIT_FAILURE);
-    }
-
-    return fd;
-}
-
-void file_read(int fd, char *buffer, ssize_t size) {
-    ssize_t count = 0;
-    ssize_t res = 0;
-
-    while ((count += res) < size) {
-        res = read(fd, buffer + count, size - count);
-
-        if (res == -1) {
-            printf("Error: could not read from file.");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (DEBUG) printf("[IMG] Read %ld/%ld bytes.\n", count, size);
+ssize_t tcp_recv(int sockfd, char *buffer, ssize_t nbytes) {
+    return read(sockfd, buffer, nbytes);
 }
 
 /* ---- Validators ---- */
@@ -256,7 +178,7 @@ int validate_AID(char *str) {
         }
     }
 
-    return (i = AID_LEN);
+    return (i == AID_LEN);
 }
 
 /* ---- Commands ---- */
@@ -265,7 +187,10 @@ int validate_AID(char *str) {
 void command_login(char *command) {
     char temp_uid[BUFFER_LEN];
     char temp_pwd[BUFFER_LEN];
-    sscanf(command, "login %s %s\n", temp_uid, temp_pwd);
+    
+    if (sscanf(command, "login %s %s\n", temp_uid, temp_pwd) < 0) {
+        panic("Error");
+    }
     
     if (islogged) {
         printf("You are already logged in.\n");
@@ -286,19 +211,37 @@ void command_login(char *command) {
     strcpy(user_pwd, temp_pwd);
 
     char buffer[BUFFER_LEN];
-    sprintf(buffer, "LIN %s %s\n", user_uid, user_pwd);
 
-    int fd = udp_socket();
-    udp_send(fd, buffer);
-    udp_recv(fd, buffer);
-    close(fd);
+    int printed = sprintf(buffer, "LIN %s %s\n", user_uid, user_pwd);
+    if (printed < 0) {
+        panic("sprintf() at login");
+    }
 
-    if (!strcmp(buffer, "RLI NOK\n")) {
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("socket() at login");
+    }
+
+    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
+    if (sent == -1) {
+        close(serverfd);
+        panic("sendto() at login");
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    if (received == -1) {
+        close(serverfd);
+        panic("recvfrom() at login");
+    }
+
+    close(serverfd);
+
+    if (!strncmp(buffer, "RLI NOK\n", received)) {
         printf("Incorrect login attempt.\n");
-    } else if (!strcmp(buffer, "RLI OK\n")) {
+    } else if (!strncmp(buffer, "RLI OK\n", received)) {
         printf("Successfull login.\n");
         islogged = 1;
-    } else if (!strcmp(buffer, "RLI REG\n")) {
+    } else if (!strncmp(buffer, "RLI REG\n", received)) {
         printf("New user registered.\n");
         islogged = 1;
     }
@@ -312,19 +255,36 @@ void command_logout() {
     }
 
     char buffer[BUFFER_LEN];
-    sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
-    
-    int fd = udp_socket();
-    udp_send(fd, buffer);
-    udp_recv(fd, buffer);
-    close(fd);
 
-    if (!strcmp(buffer, "RLO OK\n")) {
+    int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
+    if (printed < 0) {
+        panic("Error");
+    }
+    
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("Error");
+    }
+
+    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+        close(serverfd);
+        panic("Error");
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    if (received == -1) {
+        close(serverfd);
+        panic("Error");
+    }
+
+    close(serverfd);
+
+    if (!strncmp(buffer, "RLO OK\n", received)) {
         printf("Successfull logout.\n");
         islogged = 0;
-    } else if (!strcmp(buffer, "RLO NOK\n")) {
+    } else if (!strncmp(buffer, "RLO NOK\n", received)) {
         printf("User not logged in.\n");
-    } else if (!strcmp(buffer, "RLO UNR\n")) {
+    } else if (!strncmp(buffer, "RLO UNR\n", received)) {
         printf("Unknown user.\n");
     }
 }
@@ -337,19 +297,39 @@ void command_unregister() {
     }
     
     char buffer[BUFFER_LEN];
-    sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
 
-    int fd = udp_socket();
-    udp_send(fd, buffer);
-    udp_recv(fd, buffer);
-    close(fd);
+    int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
+    if (printed < 0) {
+        panic("Error");
+        exit(EXIT_FAILURE);
+    }
 
-    if (!strcmp(buffer, "RUR OK\n")) {
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("Error");
+        exit(EXIT_FAILURE);
+    }
+
+    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
+    if (sent == -1) {
+        panic("Error");
+        exit(EXIT_FAILURE);
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    if (received == -1) {
+        panic("Error");
+        exit(EXIT_FAILURE);
+    }
+    
+    close(serverfd);
+
+    if (!strncmp(buffer, "RUR OK\n", received)) {
         printf("Successfull unregister.\n");
         islogged = 0;
-    } else if (!strcmp(buffer, "RUR NOK\n")) {
+    } else if (!strncmp(buffer, "RUR NOK\n", received)) {
         printf("Unknown user.\n");
-    } else if (!strcmp(buffer, "RUR UNR\n")) {
+    } else if (!strncmp(buffer, "RUR UNR\n", received)) {
         printf("Incorrect unregister attempt.\n");
     }
 }
@@ -371,17 +351,21 @@ void command_open(char *command) {
         return;
     }
     
-    char name[BUFFER_LEN];
-    char asset_fname[BUFFER_LEN];
-    char start_value[BUFFER_LEN];
-    char timeactive[BUFFER_LEN];
-    char AID[AID_LEN];
-    sscanf(command, "open %s %s %s %s\n", name, asset_fname, start_value, timeactive);
+    char name[AUCTION_NAME_LEN+1];
+    char asset_fname[ASSET_FNAME_LEN+1];
+    char start_value[STARTVALUE_LEN+1];
+    char timeactive[DURATION_LEN+1];
+    
+    if (sscanf(command, "open %s %s %s %s\n", name, asset_fname, start_value, timeactive) < 0) {
+        panic("Error: sscanf().\n");
+    }
 
     if (!validate_auction_name(name)) {
         printf("The auction name must be composed of up to 10 alphanumeric characters.\n");
         return;
     }
+
+    // validate asset fname ...
 
     if (!validate_startvalue(start_value)) {
         printf("The auction start value must be composed of up to 6 digits.\n");
@@ -393,29 +377,102 @@ void command_open(char *command) {
         return;
     }
 
-    int fd = file_open(asset_fname, O_RDONLY);
-    off_t size = file_size(fd);
-    char data[size];
-    file_read(fd, data, size+1);
-    close(fd);
+    char buffer[BUFFER_LEN];
+    if (sprintf(buffer, "assets/%s", asset_fname) < 0) {
+        panic("Error: sprintf().\n");
+    }
 
-    char buffer[BUFFER_LEN + size];
-    sprintf(buffer, "OPA %s %s %s %s %s %s %ld %s\n", user_uid, user_pwd,
-                    name, start_value, timeactive, asset_fname, size, data);
+    int fd = open(buffer, O_RDONLY);
+    if (fd == -1) {
+        panic("Error: open().\n");
+    }
+
+    struct stat statbuf;
+    if (fstat(fd, &statbuf) == -1) {
+        close(fd);
+        panic("Error: fstat().\n");
+    }
+
+    off_t fsize = statbuf.st_size;
+    void *fdata = mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (fdata == MAP_FAILED) {
+        close(fd);
+        panic("Error: mmap().\n");
+    }
+
+    int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ", user_uid, user_pwd,
+                                name, start_value, timeactive, asset_fname, fsize);
+    if (printed < 0) {
+        close(fd);
+        panic("Error: sprintf().\n");
+    }
+
+    int serverfd = tcp_socket();
+    if (serverfd == -1) {
+        close(fd);
+        panic("Error: socket().\n");
+    }
+
+    if (tcp_conn(serverfd, server_addr) == -1) {
+        close(fd);
+        panic("Error: could not connect to server.\n");
+    }
+
+    ssize_t sent = tcp_send(serverfd, buffer, printed);
+    if (sent == -1) {
+        close(fd);
+        close(serverfd);
+        panic("Error: could not send message to server.\n");
+    }
+
+    for (ssize_t count = 0; count < fsize; count += sent) {
+        ssize_t nbytes = (fsize - count) > PACKET_SIZE ? PACKET_SIZE : (fsize - count);
+
+        sent = tcp_send(serverfd, (fdata + count), nbytes);
+        if (sent == -1) {
+            close(fd);
+            close(serverfd);
+            perror("Error");
+            fprintf(stderr, "Error: could not send file packet to server (sent %ld/%ld Bytes).\n", count, fsize);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (munmap(fdata, fsize) == -1) {
+        close(fd);
+        close(serverfd);
+        panic("Error: munmap().\n");
+    }
     
-    fd = tcp_socket();
-    tcp_conn(fd);
-    tcp_write(fd, buffer, size+1);
-    tcp_read(fd, buffer, BUFFER_LEN);
     close(fd);
+    
+    if (tcp_send(serverfd, "\n", 1) == -1) {
+        close(serverfd);
+        panic("Error: could not send break line to server.\n");
+    }
 
-    if (!starts_with("ROA OK ", buffer)) {
-        sscanf(command, "ROA OK %s\n", AID);
+    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    if (received == -1) {
+        close(serverfd);
+        panic("Error: could not receive message from server.\n");
+    }
+
+    close(serverfd);
+
+    if (starts_with("ROA OK ", buffer)) {
+        char AID[AID_LEN+1];
+
+        sscanf(buffer, "ROA OK %s\n", AID);
+
+        if (!validate_AID(AID)) {
+            printf("Got successfull response but invalid AID.\n");
+            return;
+        }
+
         printf("New action opened: %s.\n", AID);
-        islogged = 0;
-    } else if (!strcmp(buffer, "ROA NOK\n")) {
+    } else if (!strncmp(buffer, "ROA NOK\n", received)) {
         printf("Auction could not be started.\n");
-    } else if (!strcmp(buffer, "RUR NLG\n")) {
+    } else if (!strncmp(buffer, "RUR NLG\n", received)) {
         printf("User not logged in.\n");
     }
 }
@@ -435,8 +492,7 @@ void command_listener() {
 
     while (1) {
         if (!fgets(buffer, sizeof(buffer), stdin)) {
-            printf("Error: could not read from stdin.\n");
-            exit(EXIT_FAILURE);
+            panic("Error: could not read from stdin.\n");
         }
 
         extract_label(buffer, label, sizeof(label));
@@ -473,15 +529,26 @@ void command_listener() {
 
 /* ---- Initialization ---- */
 
+void handle_signals() {
+    struct sigaction act;
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = SIG_IGN;
+
+    if (sigaction(SIGPIPE, &act, NULL) == -1) {
+        panic("Error: could not modify signal behaviour.");
+    }
+}
+
 int main(int argc, char **argv) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(DEFAULT_PORT);
     server_addr.sin_addr.s_addr = inet_addr(DEFAULT_IP);
 
     for (int i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], IP_FLAG)) {
+        if (!strcmp(argv[i], FLAG_IP)) {
             server_addr.sin_addr.s_addr = inet_addr(argv[++i]);
-        } else if (!strcmp(argv[i], PORT_FLAG)) {
+        } else if (!strcmp(argv[i], FLAG_PORT)) {
             server_addr.sin_port = htons(atoi(argv[++i]));
         } else {
             printf("A sua pessoa apresenta-se néscia, encaminhe-se no sentido do orgão genital masculino.\n");
@@ -489,6 +556,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    handle_signals();
     command_listener();
     return 1;
 }
