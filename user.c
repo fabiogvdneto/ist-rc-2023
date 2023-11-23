@@ -121,7 +121,7 @@ int validate_user_uid(char *str) {
     return (i == USER_UID_LEN);
 }
 
-int validate_password(char *str) {
+int validate_user_password(char *str) {
     int i = 0;
 
     while (str[i] != '\0') {
@@ -202,7 +202,7 @@ void command_login(char *command) {
         return;
     }
 
-    if (!validate_password(temp_pwd)) {
+    if (!validate_user_password(temp_pwd)) {
         printf("The password must be composed of 8 alphanumeric characters.\n");
         return;
     }
