@@ -48,6 +48,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define USER_PWD_LEN 8
 #define AID_LEN 3
 #define AUCTION_NAME_LEN 10
+#define ASSET_NAME_LEN 24
 #define AUCTION_DURATION_LEN 5
 #define AUCTION_START_VALUE_LEN 6
 #define FILENAME_LEN 24
@@ -143,6 +144,20 @@ int validate_auction_name(char *str) {
     }
 
     return (i <= AUCTION_NAME_LEN);
+}
+
+int validate_asset_name(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!(isalnum(str[i]) || str[i] == '-' 
+            || str[i] == '_' || str[i] == '.')) {
+                return 0;
+            }
+        i++;
+    }
+
+    return (i <= ASSET_NAME_LEN);
 }
 
 int validate_auction_duration(char *str) {
@@ -309,25 +324,21 @@ void command_unregister() {
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
         panic("Error");
-        exit(EXIT_FAILURE);
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
         panic("Error");
-        exit(EXIT_FAILURE);
     }
 
     ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
     if (sent == -1) {
         panic("Error");
-        exit(EXIT_FAILURE);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
         panic("Error");
-        exit(EXIT_FAILURE);
     }
     
     close(serverfd);
@@ -373,7 +384,10 @@ void command_open(char *command) {
         return;
     }
 
-    // validate asset fname ...
+    if (!validate_asset_name(fname)) {
+        printf("The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n");
+        return;
+    }
 
     if (!validate_auction_start_value(start_value)) {
         printf("The auction start value must be composed of up to 6 digits.\n");
@@ -545,8 +559,62 @@ void command_close(char *command) {
         printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
     } else if (str_starts_with("RCL END\n", buffer)) {
         printf("The auction %s has already ended.\n", aid);
+    }
+}
+
+/* myauctions OR ma */
+void command_myauctions() {
+    if (!islogged) {
+        printf("User not logged in.\n");
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
+
+    int printed = sprintf(buffer, "LMA %s\n", user_uid);
+    if (printed < 0) {
+        panic("sprintf() at login");
+    }
+
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
+    if (sent == -1) {
+        panic("Error");
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    if (received == -1) {
+        panic("Error");
+    }
+
+    close(serverfd);
+
+    if (str_starts_with("RCL NOK\n", buffer)) {
+        printf("The user %s has no ongoing auctions.\n", user_uid);
+    } else if (str_starts_with("RCL NLG\n", buffer)) {
+        printf("User not logged in.\n");
+    } else if (str_starts_with("RCL OK", buffer)) {
+        char aid[AID_LEN+1];
+        int status;
+        // TODO: check and fix this part
+        printf("List of auctions own by user %s:\n", user_uid);
+        int count = 6;
+        int scaned;
+        while ((scaned = sscanf(buffer + scaned, " %s %d", aid, &status)) > 0) {
+            printf("Auction %s, ", aid);
+            if (status) {
+                printf("active.\n");
+            } else {
+                printf("inactive.\n");
+            }
+            count += scaned;
+        }
     } else if (DEBUG) {
-        printf("Resposta não contemplada.\n");
+        printf("%s\n", buffer);
     }
 }
 
@@ -573,7 +641,7 @@ void command_listener() {
         } else if (str_starts_with("close ", buffer)) {
             command_close(buffer);
         } else if (str_starts_with("myactions\n", buffer) || str_starts_with("ma\n", buffer)) {
-            
+            command_myauctions();
         } else if (str_starts_with("mybids\n", buffer) || str_starts_with("mb\n", buffer)) {
             
         } else if (str_starts_with("list\n", buffer) || str_starts_with("l\n", buffer)) {
