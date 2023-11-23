@@ -60,7 +60,7 @@ char user_pwd[USER_PWD_LEN+1];
 int islogged = 0;
 
 void panic(char *msg) {
-    fprintf(stderr, "%s\n", msg);
+    fprintf(stderr, "%s", msg);
     exit(EXIT_FAILURE);
 }
 
@@ -145,7 +145,7 @@ int validate_auction_name(char *str) {
     return (i <= AUCTION_NAME_LEN);
 }
 
-int validate_duration(char *str) {
+int validate_auction_duration(char *str) {
     int i = 0;
 
     while (str[i] != '\0') {
@@ -188,13 +188,13 @@ void command_login(char *command) {
     char temp_uid[BUFFER_LEN];
     char temp_pwd[BUFFER_LEN];
     
-    if (sscanf(command, "login %s %s\n", temp_uid, temp_pwd) < 0) {
-        panic("Error");
-    }
-    
     if (islogged) {
         printf("You are already logged in.\n");
         return;
+    }
+    
+    if (sscanf(command, "login %s %s\n", temp_uid, temp_pwd) < 0) {
+        panic("Error");
     }
 
     if (!validate_user_uid(temp_uid)) {
@@ -207,12 +207,9 @@ void command_login(char *command) {
         return;
     }
 
-    strcpy(user_uid, temp_uid);
-    strcpy(user_pwd, temp_pwd);
-
     char buffer[BUFFER_LEN];
 
-    int printed = sprintf(buffer, "LIN %s %s\n", user_uid, user_pwd);
+    int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_uid);
     if (printed < 0) {
         panic("sprintf() at login");
     }
@@ -236,14 +233,19 @@ void command_login(char *command) {
 
     close(serverfd);
 
-    if (!strncmp(buffer, "RLI NOK\n", received)) {
+    if (str_starts_with("RLI NOK\n", buffer)) {
         printf("Incorrect login attempt.\n");
-    } else if (!strncmp(buffer, "RLI OK\n", received)) {
-        printf("Successfull login.\n");
+    } else if (str_starts_with("RLI OK\n", buffer)) {
+        printf("Successful login.\n");
         islogged = 1;
-    } else if (!strncmp(buffer, "RLI REG\n", received)) {
+    } else if (str_starts_with("RLI REG\n", buffer)) {
         printf("New user registered.\n");
         islogged = 1;
+    }
+
+    if (islogged) {
+        strcpy(user_uid, temp_uid);
+        strcpy(user_pwd, temp_pwd);
     }
 }
 
@@ -279,12 +281,12 @@ void command_logout() {
 
     close(serverfd);
 
-    if (!strncmp(buffer, "RLO OK\n", received)) {
-        printf("Successfull logout.\n");
+    if (str_starts_with("RLO OK\n", buffer)) {
+        printf("Successful logout.\n");
         islogged = 0;
-    } else if (!strncmp(buffer, "RLO NOK\n", received)) {
+    } else if (str_starts_with("RLO NOK\n", buffer)) {
         printf("User not logged in.\n");
-    } else if (!strncmp(buffer, "RLO UNR\n", received)) {
+    } else if (str_starts_with("RLO UNR\n", buffer)) {
         printf("Unknown user.\n");
     }
 }
@@ -324,12 +326,12 @@ void command_unregister() {
     
     close(serverfd);
 
-    if (!strncmp(buffer, "RUR OK\n", received)) {
-        printf("Successfull unregister.\n");
+    if (str_starts_with("RUR OK\n", buffer)) {
+        printf("Successful unregister.\n");
         islogged = 0;
-    } else if (!strncmp(buffer, "RUR NOK\n", received)) {
+    } else if (str_starts_with("RUR NOK\n", buffer)) {
         printf("Unknown user.\n");
-    } else if (!strncmp(buffer, "RUR UNR\n", received)) {
+    } else if (str_starts_with("RUR UNR\n", buffer)) {
         printf("Incorrect unregister attempt.\n");
     }
 }
@@ -372,7 +374,7 @@ void command_open(char *command) {
         return;
     }
     
-    if (!validate_duration(duration)) {
+    if (!validate_auction_duration(duration)) {
         printf("The auction duration must be composed of up to 5 digits.\n");
         return;
     }
@@ -471,9 +473,9 @@ void command_open(char *command) {
         }
 
         printf("New action opened: %s.\n", aid);
-    } else if (!strncmp(buffer, "ROA NOK\n", received)) {
+    } else if (str_starts_with("ROA NOK\n", buffer)) {
         printf("Auction could not be started.\n");
-    } else if (!strncmp(buffer, "RUR NLG\n", received)) {
+    } else if (str_starts_with("RUR NLG\n", buffer)) {
         printf("User not logged in.\n");
     }
 }
