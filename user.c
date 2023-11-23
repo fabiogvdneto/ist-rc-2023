@@ -46,11 +46,11 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 #define USER_UID_LEN 6
 #define USER_PWD_LEN 8
-#define AUCTION_NAME_LEN 10
-#define ASSET_FNAME_LEN 24
-#define STARTVALUE_LEN 6
-#define DURATION_LEN 5
 #define AID_LEN 3
+#define AUCTION_NAME_LEN 10
+#define AUCTION_DURATION_LEN 5
+#define AUCTION_START_VALUE_LEN 6
+#define FILENAME_LEN 24
 
 struct sockaddr_in server_addr;
 
@@ -145,18 +145,6 @@ int validate_auction_name(char *str) {
     return (i <= AUCTION_NAME_LEN);
 }
 
-int validate_startvalue(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isdigit(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i <= STARTVALUE_LEN);
-}
-
 int validate_duration(char *str) {
     int i = 0;
 
@@ -166,7 +154,19 @@ int validate_duration(char *str) {
         }
     }
 
-    return (i <= DURATION_LEN);
+    return (i <= AUCTION_DURATION_LEN);
+}
+
+int validate_auction_start_value(char *str) {
+    int i = 0;
+
+    while (str[i] != '\0') {
+        if (!isdigit(str[i++])) {
+            return 0;
+        }
+    }
+
+    return (i <= AUCTION_START_VALUE_LEN);
 }
 
 int validate_AID(char *str) {
@@ -351,12 +351,12 @@ void command_open(char *command) {
         return;
     }
     
+    char fname[FILENAME_LEN+1];
     char name[AUCTION_NAME_LEN+1];
-    char asset_fname[ASSET_FNAME_LEN+1];
-    char start_value[STARTVALUE_LEN+1];
-    char timeactive[DURATION_LEN+1];
+    char duration[AUCTION_DURATION_LEN+1];
+    char start_value[AUCTION_START_VALUE_LEN+1];
     
-    if (sscanf(command, "open %s %s %s %s\n", name, asset_fname, start_value, timeactive) < 0) {
+    if (sscanf(command, "open %s %s %s %s\n", name, fname, start_value, duration) < 0) {
         panic("Error: sscanf().\n");
     }
 
@@ -367,18 +367,18 @@ void command_open(char *command) {
 
     // validate asset fname ...
 
-    if (!validate_startvalue(start_value)) {
+    if (!validate_auction_start_value(start_value)) {
         printf("The auction start value must be composed of up to 6 digits.\n");
         return;
     }
     
-    if (!validate_duration(timeactive)) {
+    if (!validate_duration(duration)) {
         printf("The auction duration must be composed of up to 5 digits.\n");
         return;
     }
 
     char buffer[BUFFER_LEN];
-    if (sprintf(buffer, "assets/%s", asset_fname) < 0) {
+    if (sprintf(buffer, "assets/%s", fname) < 0) {
         panic("Error: sprintf().\n");
     }
 
@@ -401,7 +401,7 @@ void command_open(char *command) {
     }
 
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ", user_uid, user_pwd,
-                                name, start_value, timeactive, asset_fname, fsize);
+                                name, start_value, duration, fname, fsize);
     if (printed < 0) {
         close(fd);
         panic("Error: sprintf().\n");
@@ -460,16 +460,16 @@ void command_open(char *command) {
     close(serverfd);
 
     if (starts_with("ROA OK ", buffer)) {
-        char AID[AID_LEN+1];
+        char aid[AID_LEN+1];
 
-        sscanf(buffer, "ROA OK %s\n", AID);
+        sscanf(buffer, "ROA OK %s\n", aid);
 
-        if (!validate_AID(AID)) {
+        if (!validate_AID(aid)) {
             printf("Got successfull response but invalid AID.\n");
             return;
         }
 
-        printf("New action opened: %s.\n", AID);
+        printf("New action opened: %s.\n", aid);
     } else if (!strncmp(buffer, "ROA NOK\n", received)) {
         printf("Auction could not be started.\n");
     } else if (!strncmp(buffer, "RUR NLG\n", received)) {
