@@ -287,6 +287,8 @@ void command_logout() {
 
     if (str_starts_with("RLO OK\n", buffer)) {
         printf("Successful logout.\n");
+        memset(user_uid, 0, USER_UID_LEN);
+        memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
     } else if (str_starts_with("RLO NOK\n", buffer)) {
         printf("User not logged in.\n");
@@ -479,8 +481,72 @@ void command_open(char *command) {
         printf("New auction opened: %s.\n", aid);
     } else if (str_starts_with("ROA NOK\n", buffer)) {
         printf("Auction could not be started.\n");
-    } else if (str_starts_with("RUR NLG\n", buffer)) {
+    } else if (str_starts_with("ROA NLG\n", buffer)) {
         printf("User not logged in.\n");
+    }
+}
+
+/* close <AID> */
+void command_close(char *command) {
+    if (!islogged) {
+        printf("User not logged in.\n");
+        return;
+    }
+
+    char aid[AID_LEN+1];
+
+    if (sscanf(command, "close %s\n", aid) < 0) {
+        panic("Error: sscanf().\n");
+    }
+
+    if (!validate_AID(aid)) {
+        printf("The auction ID must be composed of 3 digits.\n");
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
+
+    int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
+    if (printed < 0) {
+        panic("sprintf() at login");
+    }
+
+    int serverfd = tcp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    if (tcp_conn(serverfd, server_addr) == -1) {
+        close(serverfd);
+        panic("Error: could not connect to server.\n");
+    }
+
+    ssize_t sent = tcp_send(serverfd, buffer, printed);
+    if (sent == -1) {
+        close(serverfd);
+        panic("Error: could not send message to server.\n");
+    }
+
+    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    if (received == -1) {
+        close(serverfd);
+        panic("Error: could not receive message from server.\n");
+    }
+
+    close(serverfd);
+
+    if (str_starts_with("RCL OK\n", buffer)) {
+        printf("Auction was successfully closed.\n");
+    } else if (str_starts_with("RCL NLG\n", buffer)) {
+        printf("User not logged in.\n");
+    } else if (str_starts_with("RCL EAU\n", buffer)) {
+        printf("The auction %s doesn't exist.\n", aid);
+    } else if (str_starts_with("RCL EOW\n", buffer)) {
+        printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
+    } else if (str_starts_with("RCL END\n", buffer)) {
+        printf("The auction %s has already ended.\n", aid);
+    } else if (DEBUG) {
+        printf("Resposta não contemplada.\n");
     }
 }
 
@@ -505,7 +571,7 @@ void command_listener() {
         } else if (str_starts_with("open ", buffer)) {
             command_open(buffer);
         } else if (str_starts_with("close ", buffer)) {
-            
+            command_close(buffer);
         } else if (str_starts_with("myactions\n", buffer) || str_starts_with("ma\n", buffer)) {
             
         } else if (str_starts_with("mybids\n", buffer) || str_starts_with("mb\n", buffer)) {
