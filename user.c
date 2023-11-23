@@ -465,7 +465,7 @@ void command_open(char *command) {
         sscanf(buffer, "ROA OK %s\n", aid);
 
         if (!validate_AID(aid)) {
-            printf("Got successfull response but invalid AID.\n");
+            printf("Invalid AID was returned.\n");
             return;
         }
 
