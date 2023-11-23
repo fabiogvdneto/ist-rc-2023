@@ -185,8 +185,8 @@ int validate_AID(char *str) {
 
 /* login <UID> <password> */
 void command_login(char *command) {
-    char temp_uid[BUFFER_LEN];
-    char temp_pwd[BUFFER_LEN];
+    char temp_uid[USER_UID_LEN+1];
+    char temp_pwd[USER_PWD_LEN+1];
     
     if (islogged) {
         printf("You are already logged in.\n");
