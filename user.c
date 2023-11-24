@@ -256,10 +256,10 @@ void command_login(char *command) {
     } else if (str_starts_with("RLI REG\n", buffer)) {
         printf("New user registered.\n");
         islogged = 1;
-    } else if ((DEBUG) && str_starts_with("RLI ERR\n", buffer)) {
-        printf("Incorrect request message syntax\n");
-    } else if ((DEBUG) && str_starts_with("ERR\n", buffer)) {
-        printf("Unexpected protocol message received\n");
+    } else if (str_starts_with("RLI ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 
     if (islogged) {
@@ -309,6 +309,10 @@ void command_logout() {
         printf("User not logged in.\n");
     } else if (str_starts_with("RLO UNR\n", buffer)) {
         printf("Unknown user.\n");
+    } else if (str_starts_with("RLO ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 }
 
@@ -350,6 +354,10 @@ void command_unregister() {
         printf("Unknown user.\n");
     } else if (str_starts_with("RUR UNR\n", buffer)) {
         printf("Incorrect unregister attempt.\n");
+    } else if (str_starts_with("RUR ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 }
 
@@ -497,6 +505,10 @@ void command_open(char *command) {
         printf("Auction could not be started.\n");
     } else if (str_starts_with("ROA NLG\n", buffer)) {
         printf("User not logged in.\n");
+    } else if (str_starts_with("ROA ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 }
 
@@ -559,6 +571,10 @@ void command_close(char *command) {
         printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
     } else if (str_starts_with("RCL END\n", buffer)) {
         printf("The auction %s has already ended.\n", aid);
+    } else if (str_starts_with("RCL ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 }
 
@@ -593,28 +609,26 @@ void command_myauctions() {
 
     close(serverfd);
 
-    if (str_starts_with("RCL NOK\n", buffer)) {
+    if (str_starts_with("RMA NOK\n", buffer)) {
         printf("The user %s has no ongoing auctions.\n", user_uid);
-    } else if (str_starts_with("RCL NLG\n", buffer)) {
+    } else if (str_starts_with("RMA NLG\n", buffer)) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RCL OK", buffer)) {
+    } else if (str_starts_with("RMA OK ", buffer)) {
+        printf("List of auctions owned by user %s:\n", user_uid);
+
         char aid[AID_LEN+1];
         int status;
-        // TODO: check and fix this part
-        printf("List of auctions own by user %s:\n", user_uid);
-        int count = 6;
-        int scaned;
-        while ((scaned = sscanf(buffer + scaned, " %s %d", aid, &status)) > 0) {
-            printf("Auction %s, ", aid);
-            if (status) {
-                printf("active.\n");
-            } else {
-                printf("inactive.\n");
-            }
-            count += scaned;
+        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
+            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
+                panic("Error: sscanf().\n");
+            } 
+
+            printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
-    } else if (DEBUG) {
-        printf("%s\n", buffer);
+    } else if (str_starts_with("RMA ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
     }
 }
 
