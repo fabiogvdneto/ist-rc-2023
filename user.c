@@ -199,17 +199,10 @@ int validate_AID(char *str) {
 /* ---- Commands ---- */
 
 /* login <UID> <password> */
-void command_login(char *command) {
-    char temp_uid[USER_UID_LEN+1];
-    char temp_pwd[USER_PWD_LEN+1];
-    
+void command_login(char *temp_uid, char *temp_pwd) {
     if (islogged) {
         printf("You are already logged in.\n");
         return;
-    }
-    
-    if (sscanf(command, "login %s %s\n", temp_uid, temp_pwd) < 0) {
-        panic("Error");
     }
 
     if (!validate_user_uid(temp_uid)) {
@@ -372,19 +365,10 @@ void command_exit() {
 }
 
 /* open <name> <asset_fname> <start_value> <timeactive> */
-void command_open(char *command) {
+void command_open(char *name, char *fname, char *start_value, char *duration) {
     if (!islogged) {
         printf("User not logged in.\n");
         return;
-    }
-    
-    char fname[FILENAME_LEN+1];
-    char name[AUCTION_NAME_LEN+1];
-    char duration[AUCTION_DURATION_LEN+1];
-    char start_value[AUCTION_VALUE_LEN+1];
-    
-    if (sscanf(command, "open %s %s %s %s\n", name, fname, start_value, duration) < 0) {
-        panic("Error: sscanf().\n");
     }
 
     if (!validate_auction_name(name)) {
@@ -512,12 +496,10 @@ void command_open(char *command) {
     }
 }
 
-void command_bid(char *command) {
-    char aid[AID_LEN+1];
-    char value[AUCTION_VALUE_LEN+1];
-
-    if (sscanf(command, "bid %s %s\n", aid, value) < 0) {
-        panic("Error: sscanf().\n");
+void command_bid(char *aid, char *value) {
+    if (!islogged) {
+        printf("User not logged in.\n");
+        return;
     }
 
     if (!validate_AID(aid)) {
@@ -525,7 +507,7 @@ void command_bid(char *command) {
         return;
     }
 
-    if (!validate_auction_value) {
+    if (!validate_auction_value(value)) {
         printf("The bid value must be composed of up to 6 digits.\n");
         return;
     }
@@ -570,16 +552,10 @@ void command_bid(char *command) {
 }
 
 /* close <AID> */
-void command_close(char *command) {
+void command_close(char *aid) {
     if (!islogged) {
         printf("User not logged in.\n");
         return;
-    }
-
-    char aid[AID_LEN+1];
-
-    if (sscanf(command, "close %s\n", aid) < 0) {
-        panic("Error: sscanf().\n");
     }
 
     if (!validate_AID(aid)) {
@@ -742,31 +718,67 @@ void command_list() {
 
 void command_listener() {
     char buffer[BUFFER_LEN];
+    char delim[] = " \n";
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
-        if (str_starts_with("login ", buffer)) {
-            command_login(buffer);
-        } else if (str_starts_with("logout\n", buffer)) {
+        char *label = strtok(buffer, delim);
+
+        if (!strcmp("login", label)) {
+            char *uid = strtok(NULL, delim);
+            char *pwd = strtok(NULL, delim);
+
+            if (!pwd) {
+                printf("Usage: login <user id> <password>\n");
+                continue;
+            }
+
+            command_login(uid, pwd);
+        } else if (!strcmp("logout", label)) {
             command_logout();
-        } else if (str_starts_with("unregister\n", buffer)) {
+        } else if (!strcmp("unregister", label)) {
             command_unregister();
-        } else if (str_starts_with("exit\n", buffer)) {
+        } else if (!strcmp("exit", label)) {
             command_exit();
-        } else if (str_starts_with("open ", buffer)) {
-            command_open(buffer);
-        } else if (str_starts_with("close ", buffer)) {
-            command_close(buffer);
-        } else if (str_starts_with("myactions\n", buffer) || str_starts_with("ma\n", buffer)) {
+        } else if (!strcmp("open", label)) {
+            char *name = strtok(NULL, delim);
+            char *fname = strtok(NULL, delim);
+            char *value = strtok(NULL, delim);
+            char *duration = strtok(NULL, delim);
+
+            if (!duration) {
+                printf("Usage: open <short description> <filename> <start value> <duration>\n");
+                continue;
+            }
+
+            command_open(name, fname, value, duration);
+        } else if (!strcmp("close", label)) {
+            char *aid = strtok(NULL, delim);
+
+            if (!aid) {
+                printf("\033[0;31mUsage: close <auction id>\n");
+                continue;
+            }
+
+            command_close(aid);
+        } else if (!strcmp("myactions", label) || !strcmp("ma", label)) {
             command_myauctions();
-        } else if (str_starts_with("mybids\n", buffer) || str_starts_with("mb\n", buffer)) {
+        } else if (!strcmp("mybids", label) || !strcmp("mb", label)) {
             
-        } else if (str_starts_with("list\n", buffer) || str_starts_with("l\n", buffer)) {
+        } else if (!strcmp("list", label) || !strcmp("l", label)) {
             command_list();
-        } else if (str_starts_with("show_asset ", buffer) || str_starts_with("sa ", buffer)) {
+        } else if (!strcmp("show_asset", label) || !strcmp("sa", label)) {
             
-        } else if (str_starts_with("bid ", buffer)) {
-            
-        } else if (str_starts_with("show_record ", buffer)) {
+        } else if (!strcmp("bid", label)) {
+            char *aid = strtok(NULL, delim);
+            char *value = strtok(NULL, delim);
+
+            if (!value) {
+                printf("\033[0;31mUsage: bid <auction id> <bid>\n");
+                continue;
+            }
+
+            command_bid(aid, value);
+        } else if (!strcmp("show_record", label)) {
             
         } else {
             printf("Command not found.\n");
