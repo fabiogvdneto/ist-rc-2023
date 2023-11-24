@@ -743,11 +743,7 @@ void command_list() {
 void command_listener() {
     char buffer[BUFFER_LEN];
 
-    while (1) {
-        if (!fgets(buffer, sizeof(buffer), stdin)) {
-            panic("Error: could not read from stdin.\n");
-        }
-        
+    while (fgets(buffer, sizeof(buffer), stdin)) {
         if (str_starts_with("login ", buffer)) {
             command_login(buffer);
         } else if (str_starts_with("logout\n", buffer)) {
@@ -776,6 +772,8 @@ void command_listener() {
             printf("Command not found.\n");
         }
     }
+
+    panic("Error: could not read from stdin.\n");
 }
 
 /* ---- Initialization ---- */
