@@ -50,7 +50,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define AUCTION_NAME_LEN 10
 #define ASSET_NAME_LEN 24
 #define AUCTION_DURATION_LEN 5
-#define AUCTION_START_VALUE_LEN 6
+#define AUCTION_VALUE_LEN 6
 #define FILENAME_LEN 24
 
 struct sockaddr_in server_addr;
@@ -172,7 +172,7 @@ int validate_auction_duration(char *str) {
     return (i <= AUCTION_DURATION_LEN);
 }
 
-int validate_auction_start_value(char *str) {
+int validate_auction_value(char *str) {
     int i = 0;
 
     while (str[i] != '\0') {
@@ -181,7 +181,7 @@ int validate_auction_start_value(char *str) {
         }
     }
 
-    return (i <= AUCTION_START_VALUE_LEN);
+    return (i <= AUCTION_VALUE_LEN);
 }
 
 int validate_AID(char *str) {
@@ -381,7 +381,7 @@ void command_open(char *command) {
     char fname[FILENAME_LEN+1];
     char name[AUCTION_NAME_LEN+1];
     char duration[AUCTION_DURATION_LEN+1];
-    char start_value[AUCTION_START_VALUE_LEN+1];
+    char start_value[AUCTION_VALUE_LEN+1];
     
     if (sscanf(command, "open %s %s %s %s\n", name, fname, start_value, duration) < 0) {
         panic("Error: sscanf().\n");
@@ -397,7 +397,7 @@ void command_open(char *command) {
         return;
     }
 
-    if (!validate_auction_start_value(start_value)) {
+    if (!validate_auction_value(start_value)) {
         printf("The auction start value must be composed of up to 6 digits.\n");
         return;
     }
@@ -507,6 +507,63 @@ void command_open(char *command) {
         printf("User not logged in.\n");
     } else if (str_starts_with("ROA ERR\n", buffer)) {
         printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
+    }
+}
+
+void command_bid(char *command) {
+    char aid[AID_LEN+1];
+    char value[AUCTION_VALUE_LEN+1];
+
+    if (sscanf(command, "bid %s %s\n", aid, value) < 0) {
+        panic("Error: sscanf().\n");
+    }
+
+    if (!validate_AID(aid)) {
+        printf("The AID must be a 3-digit number.\n");
+        return;
+    }
+
+    if (!validate_auction_value) {
+        printf("The bid value must be composed of up to 6 digits.\n");
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
+    int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
+    if (printed < 0) {
+        panic("Error: sprintf().\n");
+    }
+
+    int serverfd = tcp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    if (tcp_conn(serverfd, server_addr) == -1) {
+        close(serverfd);
+        panic("Error: could not connect to server.\n");
+    }
+
+    ssize_t sent = tcp_send(serverfd, buffer, printed);
+    if (sent == -1) {
+        close(serverfd);
+        panic("Error: could not send message to server.\n");
+    }
+
+    close(serverfd);
+
+    if (str_starts_with("RBD NOK\n", buffer)) {
+        printf("Auction not active.\n");
+    } else if (str_starts_with("RBD NGL\n", buffer)) {
+        printf("User not logged in.\n");
+    } else if (str_starts_with("RBD ACC\n", buffer)) {
+        printf("Auction accepted.\n");
+    } else if (str_starts_with("RBD REF\n", buffer)) {
+        printf("Auction refused: a larger a bid has already been placed.\n");
+    } else if (str_starts_with("RBD ILG\n", buffer)) {
+        printf("That auction is hosted by you.\n");
     } else if (str_starts_with("ERR\n", buffer)) {
         printf("Received general error message.\n");
     }
