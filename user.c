@@ -678,11 +678,60 @@ void command_myauctions() {
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
                 panic("Error: sscanf().\n");
-            } 
+            }
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
     } else if (str_starts_with("RMA ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
+    }
+}
+
+/* list OR l */
+void command_list() {
+    char buffer[BUFFER_LEN];
+
+    int printed = sprintf(buffer, "LST\n");
+    if (printed < 0) {
+        panic("sprintf() at login");
+    }
+
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
+    if (sent == -1) {
+        panic("Error");
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    if (received == -1) {
+        panic("Error");
+    }
+
+    close(serverfd);
+
+    if (str_starts_with("RLS NOK\n", buffer)) {
+        printf("No auction was started yet.\n");
+    } else if (str_starts_with("RLS OK ", buffer)) {
+        printf("List of ongoing auctions:\n");
+
+        char aid[AID_LEN+1];
+        int status;
+        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
+            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
+                panic("Error: sscanf().\n");
+            } 
+
+            if (status) {
+                printf("Auction %s.\n", aid);
+            }
+        }
+    } else if (str_starts_with("RLS ERR\n", buffer)) {
         printf("Received error message.\n");
     } else if (str_starts_with("ERR\n", buffer)) {
         printf("Received general error message.\n");
@@ -716,7 +765,7 @@ void command_listener() {
         } else if (str_starts_with("mybids\n", buffer) || str_starts_with("mb\n", buffer)) {
             
         } else if (str_starts_with("list\n", buffer) || str_starts_with("l\n", buffer)) {
-            
+            command_list();
         } else if (str_starts_with("show_asset ", buffer) || str_starts_with("sa ", buffer)) {
             
         } else if (str_starts_with("bid ", buffer)) {
