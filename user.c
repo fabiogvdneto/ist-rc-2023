@@ -612,7 +612,7 @@ void command_list() {
         printf("No auction was started yet.\n");
     } else if (str_starts_with("RLS OK ", buffer)) {
         printf("List of ongoing auctions:\n");
-
+        // TODO: fix this loop (iteratively read from socket)
         char aid[AID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
