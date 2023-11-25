@@ -17,6 +17,9 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
+/* Auction */
+#include "auction.h"
+
 /* TODOs
 
 - select()
@@ -43,15 +46,6 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 #define BUFFER_LEN 128
 #define PACKET_SIZE 2048
-
-#define USER_UID_LEN 6
-#define USER_PWD_LEN 8
-#define AID_LEN 3
-#define AUCTION_NAME_LEN 10
-#define ASSET_NAME_LEN 24
-#define AUCTION_DURATION_LEN 5
-#define AUCTION_VALUE_LEN 6
-#define FILENAME_LEN 24
 
 struct sockaddr_in server_addr;
 
@@ -110,92 +104,6 @@ int str_starts_with(char *prefix, char *str) {
     return 1;
 }
 
-int validate_user_uid(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isdigit(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i == USER_UID_LEN);
-}
-
-int validate_user_password(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isalnum(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i == USER_PWD_LEN);
-}
-
-int validate_auction_name(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isalnum(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i <= AUCTION_NAME_LEN);
-}
-
-int validate_asset_name(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!(isalnum(str[i]) || str[i] == '-' 
-            || str[i] == '_' || str[i] == '.')) {
-                return 0;
-            }
-        i++;
-    }
-
-    return (i <= ASSET_NAME_LEN);
-}
-
-int validate_auction_duration(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isdigit(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i <= AUCTION_DURATION_LEN);
-}
-
-int validate_auction_value(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isdigit(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i <= AUCTION_VALUE_LEN);
-}
-
-int validate_AID(char *str) {
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (!isdigit(str[i++])) {
-            return 0;
-        }
-    }
-
-    return (i == AID_LEN);
-}
-
 /* ---- Commands ---- */
 
 /* login <UID> <password> */
@@ -205,7 +113,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         return;
     }
 
-    if (!validate_user_uid(temp_uid)) {
+    if (!validate_user_id(temp_uid)) {
         printf("The UID must be a 6-digit IST student number.\n");
         return;
     }
@@ -414,8 +322,8 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic("Error: mmap().\n");
     }
 
-    int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ", user_uid, user_pwd,
-                                name, start_value, duration, fname, fsize);
+    int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
+                    user_uid, user_pwd, name, start_value, duration, fname, fsize);
     if (printed < 0) {
         close(fd);
         panic("Error: sprintf().\n");
@@ -479,7 +387,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
         sscanf(buffer, "ROA OK %s\n", aid);
 
-        if (!validate_AID(aid)) {
+        if (!validate_auction_id(aid)) {
             printf("Invalid AID was returned.\n");
             return;
         }
@@ -502,7 +410,7 @@ void command_bid(char *aid, char *value) {
         return;
     }
 
-    if (!validate_AID(aid)) {
+    if (!validate_auction_id(aid)) {
         printf("The AID must be a 3-digit number.\n");
         return;
     }
@@ -558,7 +466,7 @@ void command_close(char *aid) {
         return;
     }
 
-    if (!validate_AID(aid)) {
+    if (!validate_auction_id(aid)) {
         printf("The auction ID must be composed of 3 digits.\n");
         return;
     }
@@ -718,7 +626,7 @@ void command_list() {
 
 void command_listener() {
     char buffer[BUFFER_LEN];
-    char delim[] = " \n";
+    char *delim = " \n";
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
         char *label = strtok(buffer, delim);
