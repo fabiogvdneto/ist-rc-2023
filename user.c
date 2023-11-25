@@ -135,8 +135,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         panic("socket() at login");
     }
 
-    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
-    if (sent == -1) {
+    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         close(serverfd);
         panic("sendto() at login");
     }
@@ -236,8 +235,7 @@ void command_unregister() {
         panic("Error");
     }
 
-    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
-    if (sent == -1) {
+    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         panic("Error");
     }
 
@@ -341,24 +339,16 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic("Error: could not connect to server.\n");
     }
 
-    ssize_t sent = tcp_send(serverfd, buffer, printed);
-    if (sent == -1) {
+    if (tcp_send(serverfd, buffer, printed) == -1) {
         close(fd);
         close(serverfd);
         panic("Error: could not send message to server.\n");
     }
 
-    for (ssize_t count = 0; count < fsize; count += sent) {
-        ssize_t nbytes = (fsize - count) > PACKET_SIZE ? PACKET_SIZE : (fsize - count);
-
-        sent = tcp_send(serverfd, (fdata + count), nbytes);
-        if (sent == -1) {
-            close(fd);
-            close(serverfd);
-            perror("Error");
-            fprintf(stderr, "Error: could not send file packet to server (sent %ld/%ld Bytes).\n", count, fsize);
-            exit(EXIT_FAILURE);
-        }
+    if (tcp_send(serverfd, fdata, fsize) == -1) {
+        close(fd);
+        close(serverfd);
+        panic("Error: could not send file data to server.\n");
     }
 
     if (munmap(fdata, fsize) == -1) {
@@ -436,8 +426,7 @@ void command_bid(char *aid, char *value) {
         panic("Error: could not connect to server.\n");
     }
 
-    ssize_t sent = tcp_send(serverfd, buffer, printed);
-    if (sent == -1) {
+    if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic("Error: could not send message to server.\n");
     }
@@ -497,8 +486,7 @@ void command_close(char *aid) {
         panic("Error: could not connect to server.\n");
     }
 
-    ssize_t sent = tcp_send(serverfd, buffer, printed);
-    if (sent == -1) {
+    if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic("Error: could not send message to server.\n");
     }
@@ -547,8 +535,7 @@ void command_myauctions() {
         panic("Error: socket().\n");
     }
 
-    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
-    if (sent == -1) {
+    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         panic("Error");
     }
 
@@ -596,8 +583,7 @@ void command_list() {
         panic("Error: socket().\n");
     }
 
-    ssize_t sent = udp_send(serverfd, buffer, printed, server_addr);
-    if (sent == -1) {
+    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         panic("Error");
     }
 
