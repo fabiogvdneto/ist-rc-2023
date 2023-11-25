@@ -663,7 +663,7 @@ void command_listener() {
             char *aid = strtok(NULL, delim);
 
             if (!aid) {
-                printf("\033[0;31mUsage: close <auction id>\n");
+                printf("Usage: close <auction id>\n");
                 continue;
             }
 
@@ -681,7 +681,7 @@ void command_listener() {
             char *value = strtok(NULL, delim);
 
             if (!value) {
-                printf("\033[0;31mUsage: bid <auction id> <bid>\n");
+                printf("Usage: bid <auction id> <bid>\n");
                 continue;
             }
 
