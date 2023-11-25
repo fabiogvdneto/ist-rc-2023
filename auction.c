@@ -1,3 +1,5 @@
+#include <ctype.h>
+
 #include "auction.h"
 
 int validate_user_id(char *str) {

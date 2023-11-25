@@ -442,6 +442,12 @@ void command_bid(char *aid, char *value) {
         panic("Error: could not send message to server.\n");
     }
 
+    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    if (received == -1) {
+        close(serverfd);
+        panic("Error: could not receive message from server.\n");
+    }
+
     close(serverfd);
 
     if (str_starts_with("RBD NOK\n", buffer)) {
@@ -449,14 +455,17 @@ void command_bid(char *aid, char *value) {
     } else if (str_starts_with("RBD NGL\n", buffer)) {
         printf("User not logged in.\n");
     } else if (str_starts_with("RBD ACC\n", buffer)) {
-        printf("Auction accepted.\n");
+        printf("Bid accepted.\n");
     } else if (str_starts_with("RBD REF\n", buffer)) {
-        printf("Auction refused: a larger a bid has already been placed.\n");
+        printf("Bid refused: a larger a bid has already been placed.\n");
     } else if (str_starts_with("RBD ILG\n", buffer)) {
         printf("That auction is hosted by you.\n");
+    } else if (str_starts_with("ROA ERR\n", buffer)) {
+        printf("Received error message.\n");
     } else if (str_starts_with("ERR\n", buffer)) {
         printf("Received general error message.\n");
     }
+
 }
 
 /* close <AID> */
@@ -603,7 +612,7 @@ void command_list() {
         printf("No auction was started yet.\n");
     } else if (str_starts_with("RLS OK ", buffer)) {
         printf("List of ongoing auctions:\n");
-
+        // TODO: fix this loop (iteratively read from socket)
         char aid[AID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
@@ -676,7 +685,7 @@ void command_listener() {
             command_list();
         } else if (!strcmp("show_asset", label) || !strcmp("sa", label)) {
             
-        } else if (!strcmp("bid", label)) {
+        } else if (!strcmp("bid", label) || !strcmp("b", label)) {
             char *aid = strtok(NULL, delim);
             char *value = strtok(NULL, delim);
 
@@ -684,7 +693,7 @@ void command_listener() {
                 printf("Usage: bid <auction id> <bid>\n");
                 continue;
             }
-
+            
             command_bid(aid, value);
         } else if (!strcmp("show_record", label)) {
             
