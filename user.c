@@ -70,8 +70,8 @@ ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in add
 }
 
 ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in addr) {
-    socklen_t addrlen = sizeof(addr);
-    return recvfrom(sockfd, buffer, nbytes, 0, (struct sockaddr*) &addr, &addrlen);
+    // Should we check if the address we get is equal to the server address?
+    return recv(sockfd, buffer, nbytes, 0);
 }
 
 /* ---- TCP Protocol ---- */
