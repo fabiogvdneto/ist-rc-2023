@@ -66,11 +66,12 @@ int udp_socket() {
     return socket(AF_INET, SOCK_DGRAM, 0);
 }
 
-ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in addr) {
-    return sendto(sockfd, buffer, nbytes, 0, (struct sockaddr*) &addr, sizeof(addr));
+ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in* addr) {
+    return sendto(sockfd, buffer, nbytes, 0, (struct sockaddr*) addr, sizeof(addr));
 }
 
-ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in addr) {
+ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in* addr) {
+    (void)addr;
     // Should we check if the address we get is equal to the server address?
     return recv(sockfd, buffer, nbytes, 0);
 }
@@ -81,8 +82,8 @@ int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
 }
 
-int tcp_conn(int sockfd, struct sockaddr_in addr) {
-    return connect(sockfd, (struct sockaddr*) &addr, sizeof(addr));
+int tcp_conn(int sockfd, struct sockaddr_in* addr) {
+    return connect(sockfd, (struct sockaddr*) addr, sizeof(addr));
 }
 
 ssize_t tcp_send(int sockfd, char *buffer, ssize_t nbytes) {
@@ -136,12 +137,12 @@ void command_login(char *temp_uid, char *temp_pwd) {
         panic("socket() at login");
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         close(serverfd);
         panic("sendto() at login");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         close(serverfd);
         panic("recvfrom() at login");
@@ -188,12 +189,12 @@ void command_logout() {
         panic("Error");
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         close(serverfd);
         panic("Error");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         close(serverfd);
         panic("Error");
@@ -236,11 +237,11 @@ void command_unregister() {
         panic("Error");
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         panic("Error");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         panic("Error");
     }
@@ -334,7 +335,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic("Error: socket().\n");
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (tcp_conn(serverfd, &server_addr) == -1) {
         close(fd);
         close(serverfd);
         panic("Error: could not connect to server.\n");
@@ -422,7 +423,7 @@ void command_bid(char *aid, char *value) {
         panic("Error: socket().\n");
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (tcp_conn(serverfd, &server_addr) == -1) {
         close(serverfd);
         panic("Error: could not connect to server.\n");
     }
@@ -482,7 +483,7 @@ void command_close(char *aid) {
         panic("Error: socket().\n");
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (tcp_conn(serverfd, &server_addr) == -1) {
         close(serverfd);
         panic("Error: could not connect to server.\n");
     }
@@ -536,11 +537,11 @@ void command_myauctions() {
         panic("Error: socket().\n");
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         panic("Error");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         panic("Error");
     }
@@ -584,11 +585,11 @@ void command_list() {
         panic("Error: socket().\n");
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         panic("Error");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, &server_addr);
     if (received == -1) {
         panic("Error");
     }
