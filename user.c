@@ -45,6 +45,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define DEFAULT_IP "193.136.138.142" // "127.0.0.1"
 
 #define BUFFER_LEN 128
+#define BIG_BUFFER_LEN 6144
 #define PACKET_SIZE 2048
 
 struct sockaddr_in server_addr;
@@ -571,7 +572,7 @@ void command_myauctions() {
 
 /* list OR l */
 void command_list() {
-    char buffer[BUFFER_LEN];
+    char buffer[BIG_BUFFER_LEN];
 
     int printed = sprintf(buffer, "LST\n");
     if (printed < 0) {
@@ -587,7 +588,7 @@ void command_list() {
         panic("Error");
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, server_addr);
     if (received == -1) {
         panic("Error");
     }
