@@ -67,7 +67,7 @@ int udp_socket() {
 }
 
 ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in* addr) {
-    return sendto(sockfd, buffer, nbytes, 0, (struct sockaddr*) addr, sizeof(addr));
+    return sendto(sockfd, buffer, nbytes, 0, (struct sockaddr*) addr, sizeof(*addr));
 }
 
 ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr_in* addr) {
@@ -83,7 +83,7 @@ int tcp_socket() {
 }
 
 int tcp_conn(int sockfd, struct sockaddr_in* addr) {
-    return connect(sockfd, (struct sockaddr*) addr, sizeof(addr));
+    return connect(sockfd, (struct sockaddr*) addr, sizeof(*addr));
 }
 
 ssize_t tcp_send(int sockfd, char *buffer, ssize_t nbytes) {
