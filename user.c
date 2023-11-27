@@ -396,6 +396,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     }
 }
 
+/* bid <aid> <value> */
 void command_bid(char *aid, char *value) {
     if (!islogged) {
         printf("User not logged in.\n");
@@ -628,9 +629,10 @@ void command_list() {
 void command_listener() {
     char buffer[BUFFER_LEN];
     char *delim = " \n";
+    char *label;
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
-        char *label = strtok(buffer, delim);
+        if (!(label = strtok(buffer, delim))) continue;
 
         if (!strcmp("login", label)) {
             char *uid = strtok(NULL, delim);
