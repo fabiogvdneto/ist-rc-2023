@@ -5,4 +5,4 @@ AS: AS.c
 	gcc -Wall -Wextra AS.c -o AS
 
 clean:
-	rm -f user AS
+	rm -f user AS *.jpg

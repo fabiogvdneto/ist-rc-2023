@@ -476,7 +476,7 @@ void command_close(char *aid) {
 
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
-        panic("sprintf() at login");
+        panic("sprintf() at close");
     }
 
     int serverfd = tcp_socket();
@@ -572,11 +572,16 @@ void command_myauctions() {
     }
 }
 
-/* list OR l */
-void command_list() {
-    char buffer[BIG_BUFFER_LEN];
+/* mybids OR mb */
+void command_mybids() {
+    if (!islogged) {
+        printf("User not logged in.\n");
+        return;
+    }
 
-    int printed = sprintf(buffer, "LST\n");
+    char buffer[BUFFER_LEN];
+
+    int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
         panic("sprintf() at login");
     }
@@ -587,6 +592,49 @@ void command_list() {
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
+        panic("Error");
+    }
+
+    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
+    if (received == -1) {
+        panic("Error");
+    }
+
+    close(serverfd);
+
+    if (str_starts_with("RMB NOK\n", buffer)) {
+        printf("The user %s has no ongoing bids.\n", user_uid);
+    } else if (str_starts_with("RMB NLG\n", buffer)) {
+        printf("User not logged in.\n");
+    } else if (str_starts_with("RMB OK ", buffer)) {
+        printf("List of auctions for which user %s has placed bids:\n", user_uid);
+
+        char aid[AID_LEN+1];
+        int status;
+        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
+            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
+                panic("Error: sscanf().\n");
+            }
+
+            printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
+        }
+    } else if (str_starts_with("RMB ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
+    }
+}
+
+/* list OR l */
+void command_list() {
+    char *buffer = "LST\n";
+
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    if (udp_send(serverfd, buffer, strlen("LST\n"), &server_addr) == -1) {
         panic("Error");
     }
 
@@ -622,6 +670,97 @@ void command_list() {
     } else if (str_starts_with("ERR\n", buffer)) {
         printf("Received general error message.\n");
     }
+}
+
+/* show_asset <aid> OR sa <aid>*/
+void command_show_asset(char *aid) {
+    char buffer[BUFFER_LEN];
+
+    int printed = sprintf(buffer, "SAS %s\n", aid);
+    if (printed < 0) {
+        panic("sprintf() at show_asset.\n");
+    }
+
+    int serverfd = tcp_socket();
+    if (serverfd == -1) {
+        panic("Error: socket().\n");
+    }
+
+    if (tcp_conn(serverfd, &server_addr) == -1) {
+        close(serverfd);
+        panic("Error: could not connect to server.\n");
+    }
+
+    if (tcp_send(serverfd, buffer, printed) == -1) {
+        close(serverfd);
+        panic("Error: could not send message to server.\n");
+    }
+
+    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    if (received == -1) {
+        close(serverfd);
+        panic("Error, could not receive message from server.\n");
+    }
+
+    printf("%s\n", buffer);
+
+    if (str_starts_with("RSA NOK\n", buffer)) {
+        printf("No file to be sent or error ocurred.\n");
+    } else if (str_starts_with("RSA OK ", buffer)) {
+        char fname[FILENAME_LEN];
+        off_t fsize;
+        char data[BUFFER_LEN];
+
+        if (sscanf(buffer, "RSA OK %s %ld", fname, &fsize) < 0) {
+            // TODO: fix bug where sscanf fails
+            close(serverfd);
+            panic("Error: sscanf().\n");
+        }
+
+        printf("%s, %ld, %s,\n", fname, fsize, data);
+
+        if (!validate_asset_name(fname)) {
+            close(serverfd);
+            printf("The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n");
+            return;
+        }
+
+        /* char path[BUFFER_LEN];
+        if (sprintf(path, "received_assets/%s", fname) < 0) {
+            close(serverfd);
+            panic("Error: sprintf().\n");
+        } */
+
+        int fd = open(fname, O_CREAT|O_WRONLY|O_TRUNC, 00770); // user and group can write, read and execute
+        if (fd == -1) {
+            close(serverfd);
+            printf("%s\n", strerror(errno));
+            panic("Error: open().\n");
+        }
+
+        // TODO: implement loop to read from socket and write to file
+        ssize_t count = 0;
+        while (count < fsize) {
+            ssize_t written = write(fd, data + count, fsize);
+            if (written == -1) {
+                close(serverfd);
+                close(fd);
+                panic("Error: write.\n");
+            }
+            printf("debug\n");
+
+            count += written;
+        }
+
+        close(fd);
+    } else if (str_starts_with("RSA ERR\n", buffer)) {
+        printf("Received error message.\n");
+    } else if (str_starts_with("ERR\n", buffer)) {
+        printf("Received general error message.\n");
+    }
+
+    close(serverfd);
+
 }
 
 /* ---- Command Listener ---- */
@@ -671,14 +810,21 @@ void command_listener() {
             }
 
             command_close(aid);
-        } else if (!strcmp("myactions", label) || !strcmp("ma", label)) {
+        } else if (!strcmp("myauctions", label) || !strcmp("ma", label)) {
             command_myauctions();
         } else if (!strcmp("mybids", label) || !strcmp("mb", label)) {
-            
+            command_mybids();
         } else if (!strcmp("list", label) || !strcmp("l", label)) {
             command_list();
         } else if (!strcmp("show_asset", label) || !strcmp("sa", label)) {
-            
+            char *aid = strtok(NULL, delim);
+
+            if (!aid) {
+                printf("Usage: show_asset <auction id> OR sa <auction id>\n");
+                continue;
+            }
+
+            command_show_asset(aid);
         } else if (!strcmp("bid", label) || !strcmp("b", label)) {
             char *aid = strtok(NULL, delim);
             char *value = strtok(NULL, delim);
