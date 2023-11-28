@@ -627,7 +627,7 @@ void command_mybids() {
 
 /* list OR l */
 void command_list() {
-    char *buffer = "LST\n";
+    char buffer[BIG_BUFFER_LEN] = "LST\n";
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
@@ -835,7 +835,7 @@ void command_listener() {
             }
             
             command_bid(aid, value);
-        } else if (!strcmp("show_record", label)) {
+        } else if (!strcmp("show_record", label) || !strcmp("sr", label)) {
             
         } else {
             printf("Command not found.\n");
