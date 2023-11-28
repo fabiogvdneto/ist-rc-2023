@@ -1,11 +1,12 @@
 #ifndef _AUCTION_H_
 #define _AUCTION_H_
 
-#define USER_UID_LEN 6
+#define USER_ID_LEN 6
 #define USER_PWD_LEN 8
 #define AID_LEN 3
 #define AUCTION_NAME_LEN 10
 #define ASSET_NAME_LEN 24
+#define ASSET_NAME_EXTENSION_LEN 3
 #define AUCTION_DURATION_LEN 5
 #define AUCTION_VALUE_LEN 6
 #define FILENAME_LEN 24

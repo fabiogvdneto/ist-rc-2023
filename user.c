@@ -50,7 +50,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 struct sockaddr_in server_addr;
 
-char user_uid[USER_UID_LEN+1];
+char user_uid[USER_ID_LEN+1];
 char user_pwd[USER_PWD_LEN+1];
 
 int islogged = 0;
@@ -204,7 +204,7 @@ void command_logout() {
 
     if (str_starts_with("RLO OK\n", buffer)) {
         printf("Successful logout.\n");
-        memset(user_uid, 0, USER_UID_LEN);
+        memset(user_uid, 0, USER_ID_LEN);
         memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
     } else if (str_starts_with("RLO NOK\n", buffer)) {
@@ -767,8 +767,7 @@ void command_show_asset(char *aid) {
 
 void command_listener() {
     char buffer[BUFFER_LEN];
-    char *delim = " \n";
-    char *label;
+    char *label, *delim = " \n";
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
         if (!(label = strtok(buffer, delim))) continue;
@@ -776,12 +775,6 @@ void command_listener() {
         if (!strcmp("login", label)) {
             char *uid = strtok(NULL, delim);
             char *pwd = strtok(NULL, delim);
-
-            if (!pwd) {
-                printf("Usage: login <user id> <password>\n");
-                continue;
-            }
-
             command_login(uid, pwd);
         } else if (!strcmp("logout", label)) {
             command_logout();
@@ -794,21 +787,9 @@ void command_listener() {
             char *fname = strtok(NULL, delim);
             char *value = strtok(NULL, delim);
             char *duration = strtok(NULL, delim);
-
-            if (!duration) {
-                printf("Usage: open <short description> <filename> <start value> <duration>\n");
-                continue;
-            }
-
             command_open(name, fname, value, duration);
         } else if (!strcmp("close", label)) {
             char *aid = strtok(NULL, delim);
-
-            if (!aid) {
-                printf("Usage: close <auction id>\n");
-                continue;
-            }
-
             command_close(aid);
         } else if (!strcmp("myauctions", label) || !strcmp("ma", label)) {
             command_myauctions();
@@ -818,22 +799,10 @@ void command_listener() {
             command_list();
         } else if (!strcmp("show_asset", label) || !strcmp("sa", label)) {
             char *aid = strtok(NULL, delim);
-
-            if (!aid) {
-                printf("Usage: show_asset <auction id> OR sa <auction id>\n");
-                continue;
-            }
-
             command_show_asset(aid);
         } else if (!strcmp("bid", label) || !strcmp("b", label)) {
             char *aid = strtok(NULL, delim);
             char *value = strtok(NULL, delim);
-
-            if (!value) {
-                printf("Usage: bid <auction id> <bid>\n");
-                continue;
-            }
-            
             command_bid(aid, value);
         } else if (!strcmp("show_record", label) || !strcmp("sr", label)) {
             
