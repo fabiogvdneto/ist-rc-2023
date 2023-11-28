@@ -3,7 +3,7 @@
 
 #define USER_ID_LEN 6
 #define USER_PWD_LEN 8
-#define AID_LEN 3
+#define AUCTION_ID_LEN 3
 #define AUCTION_NAME_LEN 10
 #define ASSET_NAME_LEN 24
 #define ASSET_NAME_EXTENSION_LEN 3

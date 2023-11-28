@@ -375,7 +375,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     close(serverfd);
 
     if (str_starts_with("ROA OK ", buffer)) {
-        char aid[AID_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
 
         sscanf(buffer, "ROA OK %s\n", aid);
 
@@ -556,7 +556,7 @@ void command_myauctions() {
     } else if (str_starts_with("RMA OK ", buffer)) {
         printf("List of auctions owned by user %s:\n", user_uid);
 
-        char aid[AID_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
@@ -609,7 +609,7 @@ void command_mybids() {
     } else if (str_starts_with("RMB OK ", buffer)) {
         printf("List of auctions for which user %s has placed bids:\n", user_uid);
 
-        char aid[AID_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
@@ -650,7 +650,7 @@ void command_list() {
         printf("No auction was started yet.\n");
     } else if (str_starts_with("RLS OK ", buffer)) {
         printf("List of ongoing auctions:\n");
-        char aid[AID_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
@@ -675,8 +675,17 @@ void command_list() {
 
 /* show_asset <aid> OR sa <aid>*/
 void command_show_asset(char *aid) {
-    char buffer[BUFFER_LEN];
+    if (!islogged) {
+        printf("User not logged in.\n");
+        return;
+    }
 
+    if (!validate_auction_id(aid)) {
+        printf("The auction ID must be composed of 3 digits.\n");
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
         panic("sprintf() at show_asset.\n");
@@ -703,14 +712,14 @@ void command_show_asset(char *aid) {
         panic("Error, could not receive message from server.\n");
     }
 
-    printf("%s\n", buffer);
+    printf("%ld %s", received, buffer);
 
     if (str_starts_with("RSA NOK\n", buffer)) {
         printf("No file to be sent or error ocurred.\n");
     } else if (str_starts_with("RSA OK ", buffer)) {
         char fname[FILENAME_LEN];
-        off_t fsize;
         char data[BUFFER_LEN];
+        off_t fsize;
 
         if (sscanf(buffer, "RSA OK %s %ld", fname, &fsize) < 0) {
             // TODO: fix bug where sscanf fails
@@ -719,6 +728,7 @@ void command_show_asset(char *aid) {
         }
 
         printf("%s, %ld, %s,\n", fname, fsize, data);
+        fflush(stdin);
 
         if (!validate_asset_name(fname)) {
             close(serverfd);
@@ -761,7 +771,6 @@ void command_show_asset(char *aid) {
     }
 
     close(serverfd);
-
 }
 
 /* ---- Command Listener ---- */
