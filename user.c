@@ -627,19 +627,20 @@ void command_mybids() {
 
 /* list OR l */
 void command_list() {
-    char buffer[BIG_BUFFER_LEN] = "LST\n";
-
     int serverfd = udp_socket();
     if (serverfd == -1) {
         panic("Error: socket().\n");
     }
 
-    if (udp_send(serverfd, buffer, strlen("LST\n"), &server_addr) == -1) {
+    if (udp_send(serverfd, "LST\n", 4, &server_addr) == -1) {
+        close(serverfd);
         panic("Error");
     }
 
+    char buffer[BIG_BUFFER_LEN];
     ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, &server_addr);
     if (received == -1) {
+        close(serverfd);
         panic("Error");
     }
 
