@@ -324,44 +324,38 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic("Error: failed to map file to memory.\n");
     }
 
+    close(fd);
+
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
                     user_uid, user_pwd, name, start_value, duration, fname, fsize);
     if (printed < 0) {
-        close(fd);
         panic("Error: sprintf().\n");
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        close(fd);
         panic("Error: could not create tcp socket.\n");
     }
 
     if (tcp_conn(serverfd, &server_addr) == -1) {
-        close(fd);
         close(serverfd);
         panic("Error: could not connect to server.\n");
     }
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
-        close(fd);
         close(serverfd);
         panic("Error: could not send tcp message to server.\n");
     }
 
     if (tcp_send(serverfd, fdata, fsize) == -1) {
-        close(fd);
         close(serverfd);
         panic("Error: could not send file data to server.\n");
     }
 
     if (munmap(fdata, fsize) == -1) {
-        close(fd);
         close(serverfd);
         panic("Error: failed to unmap file from memory.\n");
     }
-    
-    close(fd);
     
     if (tcp_send(serverfd, "\n", 1) == -1) {
         close(serverfd);
