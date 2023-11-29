@@ -742,7 +742,7 @@ void command_show_asset(char *aid) {
 
         if (!validate_asset_name(fname)) {
             close(serverfd);
-            printf("The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n");
+            printf(INVALID_ASSET_NAME);
             return;
         }
 
@@ -843,8 +843,7 @@ void handle_signals() {
     act.sa_handler = SIG_IGN;
 
     if (sigaction(SIGPIPE, &act, NULL) == -1) {
-        fprintf(stderr, "Error: could not modify signal behaviour.\n");
-        exit(EXIT_FAILURE);
+        panic(ERROR_SIGACTION);
     }
 }
 
