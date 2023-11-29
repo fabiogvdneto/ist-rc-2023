@@ -129,23 +129,23 @@ void command_login(char *temp_uid, char *temp_pwd) {
 
     int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
-        panic("sprintf() at login");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("socket() at login");
+        panic("Error: could not create udp socket.\n");
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         close(serverfd);
-        panic("sendto() at login");
+        panic("Error: could not send udp message to server.\n");
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         close(serverfd);
-        panic("recvfrom() at login");
+        panic("Error: could not receive udp message from server.\n");
     }
 
     close(serverfd);
@@ -181,23 +181,23 @@ void command_logout() {
 
     int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
-        panic("Error");
+        panic("Error: sprintf().\n");
     }
     
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("Error");
+        panic("Error: could not create udp socket.\n");
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
         close(serverfd);
-        panic("Error");
+        panic("Error: could not send udp message to server.\n");
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
         close(serverfd);
-        panic("Error");
+        panic("Error: could not receive udp message from server.\n");
     }
 
     close(serverfd);
@@ -229,21 +229,21 @@ void command_unregister() {
 
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
-        panic("Error");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("Error");
+        panic("Error: could not create udp socket.\n");
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
-        panic("Error");
+        panic("Error: could not send udp message to server.\n");
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
-        panic("Error");
+        panic("Error: could not receive udp message from server.\n");
     }
     
     close(serverfd);
@@ -306,20 +306,22 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     int fd = open(buffer, O_RDONLY);
     if (fd == -1) {
-        panic("Error: open().\n");
+        fprintf(stderr, "Error: failed to open file '%s'.\n", buffer);
+        exit(EXIT_FAILURE);
     }
 
     struct stat statbuf;
     if (fstat(fd, &statbuf) == -1) {
         close(fd);
-        panic("Error: fstat().\n");
+        fprintf("Error: failed to get attributes of file '%s'.\n", buffer);
+        exit(EXIT_FAILURE);
     }
 
     off_t fsize = statbuf.st_size;
     void *fdata = mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (fdata == MAP_FAILED) {
         close(fd);
-        panic("Error: mmap().\n");
+        panic("Error: failed to map file to memory.\n");
     }
 
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
@@ -332,7 +334,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     int serverfd = tcp_socket();
     if (serverfd == -1) {
         close(fd);
-        panic("Error: socket().\n");
+        panic("Error: could not create tcp socket.\n");
     }
 
     if (tcp_conn(serverfd, &server_addr) == -1) {
@@ -344,7 +346,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(fd);
         close(serverfd);
-        panic("Error: could not send message to server.\n");
+        panic("Error: could not send tcp message to server.\n");
     }
 
     if (tcp_send(serverfd, fdata, fsize) == -1) {
@@ -356,7 +358,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     if (munmap(fdata, fsize) == -1) {
         close(fd);
         close(serverfd);
-        panic("Error: munmap().\n");
+        panic("Error: failed to unmap file from memory.\n");
     }
     
     close(fd);
@@ -369,7 +371,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        panic("Error: could not receive message from server.\n");
+        panic("Error: could not receive tcp message from server.\n");
     }
 
     close(serverfd);
@@ -421,7 +423,7 @@ void command_bid(char *aid, char *value) {
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not create tcp socket.\n");
     }
 
     if (tcp_conn(serverfd, &server_addr) == -1) {
@@ -431,13 +433,13 @@ void command_bid(char *aid, char *value) {
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        panic("Error: could not send message to server.\n");
+        panic("Error: could not send tcp message to server.\n");
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        panic("Error: could not receive message from server.\n");
+        panic("Error: could not receive tcp message from server.\n");
     }
 
     close(serverfd);
@@ -476,12 +478,12 @@ void command_close(char *aid) {
 
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
-        panic("sprintf() at close");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not create tcp message.\n");
     }
 
     if (tcp_conn(serverfd, &server_addr) == -1) {
@@ -491,13 +493,13 @@ void command_close(char *aid) {
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        panic("Error: could not send message to server.\n");
+        panic("Error: could not send tcp message to server.\n");
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        panic("Error: could not receive message from server.\n");
+        panic("Error: could not receive tcp message from server.\n");
     }
 
     close(serverfd);
@@ -530,21 +532,21 @@ void command_myauctions() {
 
     int printed = sprintf(buffer, "LMA %s\n", user_uid);
     if (printed < 0) {
-        panic("sprintf() at login");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not crete udp socket.\n");
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
-        panic("Error");
+        panic("Error: could not send udp message to server.\n");
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
-        panic("Error");
+        panic("Error: could not receive udp message from server.\n");
     }
 
     close(serverfd);
@@ -583,21 +585,21 @@ void command_mybids() {
 
     int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
-        panic("sprintf() at login");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not create udp message.\n");
     }
 
     if (udp_send(serverfd, buffer, printed, &server_addr) == -1) {
-        panic("Error");
+        panic("Error: could not send udp message to server.\n");
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, &server_addr);
     if (received == -1) {
-        panic("Error");
+        panic("Error: could not receive udp messsage from server.\n");
     }
 
     close(serverfd);
@@ -629,19 +631,19 @@ void command_mybids() {
 void command_list() {
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not create udp socket.\n");
     }
 
     if (udp_send(serverfd, "LST\n", 4, &server_addr) == -1) {
         close(serverfd);
-        panic("Error");
+        panic("Error: could not send udp message to server.\n");
     }
 
     char buffer[BIG_BUFFER_LEN];
     ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, &server_addr);
     if (received == -1) {
         close(serverfd);
-        panic("Error");
+        panic("Error: could not receive udp message from server.\n");
     }
 
     close(serverfd);
@@ -675,11 +677,6 @@ void command_list() {
 
 /* show_asset <aid> OR sa <aid>*/
 void command_show_asset(char *aid) {
-    if (!islogged) {
-        printf("User not logged in.\n");
-        return;
-    }
-
     if (!validate_auction_id(aid)) {
         printf("The auction ID must be composed of 3 digits.\n");
         return;
@@ -688,12 +685,12 @@ void command_show_asset(char *aid) {
     char buffer[BUFFER_LEN];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
-        panic("sprintf() at show_asset.\n");
+        panic("Error: sprintf().\n");
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        panic("Error: socket().\n");
+        panic("Error: could not create tcp socket.\n");
     }
 
     if (tcp_conn(serverfd, &server_addr) == -1) {
@@ -703,13 +700,13 @@ void command_show_asset(char *aid) {
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        panic("Error: could not send message to server.\n");
+        panic("Error: could not send tcp message to server.\n");
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        panic("Error, could not receive message from server.\n");
+        panic("Error: could not receive tcp message from server.\n");
     }
 
     printf("%ld %s", received, buffer);
@@ -833,7 +830,7 @@ void handle_signals() {
     act.sa_handler = SIG_IGN;
 
     if (sigaction(SIGPIPE, &act, NULL) == -1) {
-        panic("Error: could not modify signal behaviour.");
+        panic("Error: could not modify signal behaviour.\n");
     }
 }
 
