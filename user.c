@@ -36,6 +36,31 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 */
 
+#define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
+#define ERROR_EXIT_LOGGED_IN "You need to logout first.\n"
+#define ERROR_SOCKET "[Error] Could not create socket.\n"
+#define ERROR_MMAP "[Error] Failed to map file into memory.\n"
+#define ERROR_MUNMAP "[Error] Failed to unmap file from memory.\n"
+#define ERROR_SENDMSG "[Error] Could not send message to server.\n"
+#define ERROR_RECVMSG "[Error] Could not receive message from server.\n"
+#define ERROR_CONNECT "[Error] Could not establish connection with server.\n"
+#define ERROR_SPRINTF "[Error] sprintf().\n"
+#define ERROR_OPEN "[Error] Failed to open file '%s'.\n"
+#define ERROR_FSTAT "[Error] Failed to get attributes of file '%s'.\n"
+
+#define INVALID_USER_ID \
+    "The ID must be a 6-digit IST student number.\n"
+#define INVALID_USER_PWD \
+    "The password must be composed of 8 alphanumeric characters.\n"
+#define INVALID_AUCTION_NAME \
+    "The auction name must be composed of up to 10 alphanumeric characters.\n"
+#define INVALID_ASSET_NAME \
+    "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n"
+#define INVALID_AUCTION_VALUE \
+    "The auction start value must be composed of up to 6 digits.\n"
+#define INVALID_AUCTION_DURATION \
+    "The auction duration must be composed of up to 5 digits.\n"
+
 #define DEBUG 1
 
 #define FLAG_PORT "-p"
@@ -313,7 +338,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     struct stat statbuf;
     if (fstat(fd, &statbuf) == -1) {
         close(fd);
-        fprintf("Error: failed to get attributes of file '%s'.\n", buffer);
+        fprintf(stderr, "Error: failed to get attributes of file '%s'.\n", buffer);
         exit(EXIT_FAILURE);
     }
 
