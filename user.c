@@ -36,29 +36,30 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 */
 
-#define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
-#define ERROR_NOT_LOGGED_IN "You need to login first.\n"
-#define ERROR_EXIT_LOGGED_IN "You need to logout first.\n"
-#define ERROR_SOCKET "[Error] Could not create socket.\n"
-#define ERROR_MMAP "[Error] Failed to map file into memory.\n"
-#define ERROR_MUNMAP "[Error] Failed to unmap file from memory.\n"
-#define ERROR_SEND_MSG "[Error] Could not send message to server.\n"
-#define ERROR_RECV_MSG "[Error] Could not receive message from server.\n"
-#define ERROR_CONNECT "[Error] Could not establish connection with server.\n"
-#define ERROR_SPRINTF "[Error] sprintf().\n"
-#define ERROR_OPEN "[Error] Failed to open file.\n"
-#define ERROR_FSTAT "[Error] Failed to get file attributes.\n"
-#define ERROR_FGETS "[Error] Could not read from stdin.\n"
-#define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
+#define ERROR_ALREADY_LOGGED_IN "You are already logged in."
+#define ERROR_NOT_LOGGED_IN "You need to login first."
+#define ERROR_EXIT_LOGGED_IN "You need to logout first."
+#define ERROR_SOCKET "[Error] Could not create socket."
+#define ERROR_MMAP "[Error] Failed to map file into memory."
+#define ERROR_MUNMAP "[Error] Failed to unmap file from memory."
+#define ERROR_SEND_MSG "[Error] Could not send message to server."
+#define ERROR_RECV_MSG "[Error] Could not receive message from server."
+#define ERROR_CONNECT "[Error] Could not establish connection with server."
+#define ERROR_SPRINTF "[Error] sprintf()."
+#define ERROR_SSCANF "[Error]"
+#define ERROR_OPEN "[Error] Failed to open file."
+#define ERROR_FSTAT "[Error] Failed to get file attributes."
+#define ERROR_FGETS "[Error] Could not read from stdin."
+#define ERROR_SIGACTION "[Error] Could not modify signal behaviour."
 
-#define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
-#define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters.\n"
-#define INVALID_AUCTION_ID "The AID must be a 3-digit number.\n"
-#define INVALID_AUCTION_NAME "The auction name must be composed of up to 10 alphanumeric characters.\n"
-#define INVALID_AUCTION_VALUE "The auction start value must be composed of up to 6 digits.\n"
-#define INVALID_AUCTION_DURATION "The auction duration must be composed of up to 5 digits.\n"
+#define INVALID_USER_ID "The ID must be a 6-digit IST student number."
+#define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters."
+#define INVALID_AUCTION_ID "The AID must be a 3-digit number."
+#define INVALID_AUCTION_NAME "The auction name must be composed of up to 10 alphanumeric characters."
+#define INVALID_AUCTION_VALUE "The auction start value must be composed of up to 6 digits."
+#define INVALID_AUCTION_DURATION "The auction duration must be composed of up to 5 digits."
 #define INVALID_ASSET_NAME \
-    "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n"
+    "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'."
 
 #define DEBUG 1
 
@@ -78,6 +79,11 @@ char user_uid[USER_ID_LEN+1];
 char user_pwd[USER_PWD_LEN+1];
 
 int islogged = 0;
+
+void panic(char *str) {
+    fprintf(stderr, "%s\n", str);
+    exit(EXIT_FAILURE);
+}
 
 /* ---- UDP Protocol ---- */
 
@@ -101,8 +107,8 @@ int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
 }
 
-int tcp_conn(int sockfd, struct sockaddr_in* addr) {
-    return connect(sockfd, (struct sockaddr*) addr, sizeof(*addr));
+int tcp_conn(int sockfd, struct sockaddr* addr) {
+    return connect(sockfd, addr, sizeof(*addr));
 }
 
 ssize_t tcp_send(int sockfd, char *buffer, ssize_t nbytes) {
@@ -148,27 +154,23 @@ void command_login(char *temp_uid, char *temp_pwd) {
 
     int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -204,27 +206,23 @@ void command_logout() {
 
     int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
     
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -256,25 +254,21 @@ void command_unregister() {
 
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
     
     close(serverfd);
@@ -332,29 +326,25 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     char buffer[BUFFER_LEN];
     if (sprintf(buffer, "assets/%s", fname) < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int fd = open(buffer, O_RDONLY);
     if (fd == -1) {
-        fprintf(stderr, ERROR_OPEN, buffer);
-        exit(EXIT_FAILURE);
+        panic(ERROR_OPEN);
     }
 
     struct stat statbuf;
     if (fstat(fd, &statbuf) == -1) {
         close(fd);
-        fprintf(stderr, ERROR_FSTAT, buffer);
-        exit(EXIT_FAILURE);
+        panic(ERROR_FSTAT);
     }
 
     off_t fsize = statbuf.st_size;
     void *fdata = mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (fdata == MAP_FAILED) {
         close(fd);
-        fprintf(stderr, ERROR_MMAP);
-        exit(EXIT_FAILURE);
+        panic(ERROR_MMAP);
     }
 
     close(fd);
@@ -362,51 +352,44 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
                     user_uid, user_pwd, name, start_value, duration, fname, fsize);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (tcp_conn(serverfd, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_CONNECT);
+        panic(ERROR_CONNECT);
         exit(EXIT_FAILURE);
     }
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     if (tcp_send(serverfd, fdata, fsize) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     if (munmap(fdata, fsize) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_MMAP);
-        exit(EXIT_FAILURE);
+        panic(ERROR_MMAP);
     }
     
     if (tcp_send(serverfd, "\n", 1) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -453,33 +436,28 @@ void command_bid(char *aid, char *value) {
     char buffer[BUFFER_LEN];
     int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (tcp_conn(serverfd, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_CONNECT);
-        exit(EXIT_FAILURE);
+        panic(ERROR_CONNECT);
     }
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -518,33 +496,28 @@ void command_close(char *aid) {
 
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     if (tcp_conn(serverfd, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_CONNECT);
-        exit(EXIT_FAILURE);
+        panic(ERROR_CONNECT);
     }
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -577,25 +550,21 @@ void command_myauctions() {
 
     int printed = sprintf(buffer, "LMA %s\n", user_uid);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -611,8 +580,7 @@ void command_myauctions() {
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                fprintf(stderr, "Error: sscanf().\n");
-                exit(EXIT_FAILURE);
+                panic(ERROR_SSCANF);
             }
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
@@ -635,25 +603,21 @@ void command_mybids() {
 
     int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
     if (received == -1) {
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -669,8 +633,7 @@ void command_mybids() {
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                fprintf(stderr, "Error: sscanf().\n");
-                exit(EXIT_FAILURE);
+                panic(ERROR_SSCANF);
             }
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
@@ -686,22 +649,19 @@ void command_mybids() {
 void command_list() {
     int serverfd = udp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (udp_send(serverfd, "LST\n", 4, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     char buffer[BIG_BUFFER_LEN];
     ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, server_addr);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     close(serverfd);
@@ -714,8 +674,7 @@ void command_list() {
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                fprintf(stderr, "Error: sscanf().\n");
-                exit(EXIT_FAILURE);
+                panic(ERROR_SSCANF);
             }
 
             if (!validate_auction_id(aid)) {
@@ -744,33 +703,28 @@ void command_show_asset(char *aid) {
     char buffer[BUFFER_LEN];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
-        fprintf(stderr, ERROR_SPRINTF);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SPRINTF);
     }
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        fprintf(stderr, ERROR_SOCKET);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SOCKET);
     }
 
     if (tcp_conn(serverfd, server_addr) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_CONNECT);
-        exit(EXIT_FAILURE);
+        panic(ERROR_CONNECT);
     }
 
     if (tcp_send(serverfd, buffer, printed) == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_SEND_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
-        fprintf(stderr, ERROR_RECV_MSG);
-        exit(EXIT_FAILURE);
+        panic(ERROR_RECV_MSG);
     }
 
     if (str_starts_with("RSA NOK\n", buffer)) {
@@ -783,8 +737,7 @@ void command_show_asset(char *aid) {
         if (sscanf(buffer, "RSA OK %s %ld", fname, &fsize) < 0) {
             // TODO: fix bug where sscanf fails
             close(serverfd);
-            fprintf(stderr, "Error: sscanf().\n");
-            exit(EXIT_FAILURE);
+            panic(ERROR_SSCANF);
         }
 
         if (!validate_asset_name(fname)) {
@@ -803,8 +756,7 @@ void command_show_asset(char *aid) {
         if (fd == -1) {
             close(serverfd);
             printf("%s\n", strerror(errno));
-            fprintf(stderr, "Error: open().\n");
-            exit(EXIT_FAILURE);
+            panic(ERROR_OPEN);
         }
 
         // TODO: implement loop to read from socket and write to file
@@ -814,8 +766,7 @@ void command_show_asset(char *aid) {
             if (written == -1) {
                 close(serverfd);
                 close(fd);
-                fprintf(stderr, "Error: write.\n");
-                exit(EXIT_FAILURE);
+                panic("Error: write.\n");
             }
             printf("debug\n");
 
