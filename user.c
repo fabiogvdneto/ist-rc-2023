@@ -479,7 +479,7 @@ void command_close(char *aid) {
 
     int serverfd = tcp_socket();
     if (serverfd == -1) {
-        panic(ERROR_SEND_MSG);
+        panic(ERROR_SOCKET);
     }
 
     if (connect(serverfd, server_addr, server_addrlen) == -1) {
