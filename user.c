@@ -75,6 +75,8 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 struct sockaddr* server_addr;
 
+socklen_t server_addrlen;
+
 char user_uid[USER_ID_LEN+1];
 char user_pwd[USER_PWD_LEN+1];
 
@@ -85,38 +87,14 @@ void panic(char *str) {
     exit(EXIT_FAILURE);
 }
 
-/* ---- UDP Protocol ---- */
+/* ---- Sockets ---- */
 
 int udp_socket() {
     return socket(AF_INET, SOCK_DGRAM, 0);
 }
 
-ssize_t udp_send(int sockfd, char *buffer, size_t nbytes, struct sockaddr* addr) {
-    return sendto(sockfd, buffer, nbytes, 0, addr, sizeof(*addr));
-}
-
-ssize_t udp_recv(int sockfd, char *buffer, size_t nbytes, struct sockaddr* addr) {
-    (void)addr;
-    // Should we check if the address we get is equal to the server address?
-    return recv(sockfd, buffer, nbytes, 0);
-}
-
-/* ---- TCP Protocol ---- */
-
 int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
-}
-
-int tcp_conn(int sockfd, struct sockaddr* addr) {
-    return connect(sockfd, addr, sizeof(*addr));
-}
-
-ssize_t tcp_send(int sockfd, char *buffer, ssize_t nbytes) {
-    return write(sockfd, buffer, nbytes);
-}
-
-ssize_t tcp_recv(int sockfd, char *buffer, ssize_t nbytes) {
-    return read(sockfd, buffer, nbytes);
 }
 
 /* ---- Validators ---- */
@@ -162,12 +140,12 @@ void command_login(char *temp_uid, char *temp_pwd) {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -214,12 +192,12 @@ void command_logout() {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -262,11 +240,11 @@ void command_unregister() {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         panic(ERROR_RECV_MSG);
     }
@@ -360,18 +338,18 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_SOCKET);
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
         exit(EXIT_FAILURE);
     }
 
-    if (tcp_send(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    if (tcp_send(serverfd, fdata, fsize) == -1) {
+    if (write(serverfd, fdata, fsize) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
@@ -381,12 +359,12 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_MMAP);
     }
     
-    if (tcp_send(serverfd, "\n", 1) == -1) {
+    if (write(serverfd, "\n", 1) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -444,17 +422,17 @@ void command_bid(char *aid, char *value) {
         panic(ERROR_SOCKET);
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (tcp_send(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -504,17 +482,17 @@ void command_close(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (tcp_send(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -558,11 +536,11 @@ void command_myauctions() {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         panic(ERROR_RECV_MSG);
     }
@@ -611,11 +589,11 @@ void command_mybids() {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, buffer, printed, server_addr) == -1) {
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = udp_recv(serverfd, buffer, BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         panic(ERROR_RECV_MSG);
     }
@@ -652,13 +630,13 @@ void command_list() {
         panic(ERROR_SOCKET);
     }
 
-    if (udp_send(serverfd, "LST\n", 4, server_addr) == -1) {
+    if (sendto(serverfd, "LST\n", 4, 0, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
     char buffer[BIG_BUFFER_LEN];
-    ssize_t received = udp_recv(serverfd, buffer, BIG_BUFFER_LEN, server_addr);
+    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -711,17 +689,17 @@ void command_show_asset(char *aid) {
         panic(ERROR_SOCKET);
     }
 
-    if (tcp_conn(serverfd, server_addr) == -1) {
+    if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (tcp_send(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = tcp_recv(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -854,6 +832,7 @@ int main(int argc, char **argv) {
     server_addr_in.sin_port = htons(DEFAULT_PORT);
     server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
     server_addr = (struct sockaddr*) &server_addr_in;
+    server_addrlen = sizeof(server_addr_in);
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], FLAG_IP)) {
