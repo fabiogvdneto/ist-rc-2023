@@ -1,14 +1,15 @@
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+
+/* Networking */
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 /* Signals */
 #include <signal.h>
@@ -16,6 +17,7 @@
 /* Files */
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 /* Auction */
 #include "auction.h"
@@ -36,30 +38,30 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 */
 
-#define ERROR_ALREADY_LOGGED_IN "You are already logged in."
-#define ERROR_NOT_LOGGED_IN "You need to login first."
-#define ERROR_EXIT_LOGGED_IN "You need to logout first."
-#define ERROR_SOCKET "[Error] Could not create socket."
-#define ERROR_MMAP "[Error] Failed to map file into memory."
-#define ERROR_MUNMAP "[Error] Failed to unmap file from memory."
-#define ERROR_SEND_MSG "[Error] Could not send message to server."
-#define ERROR_RECV_MSG "[Error] Could not receive message from server."
-#define ERROR_CONNECT "[Error] Could not establish connection with server."
-#define ERROR_SPRINTF "[Error] sprintf()."
-#define ERROR_SSCANF "[Error]"
-#define ERROR_OPEN "[Error] Failed to open file."
-#define ERROR_FSTAT "[Error] Failed to get file attributes."
-#define ERROR_FGETS "[Error] Could not read from stdin."
-#define ERROR_SIGACTION "[Error] Could not modify signal behaviour."
+#define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
+#define ERROR_NOT_LOGGED_IN "You need to login first.\n"
+#define ERROR_EXIT_LOGGED_IN "You need to logout first.\n"
+#define ERROR_SOCKET "[Error] Could not create socket.\n"
+#define ERROR_MMAP "[Error] Failed to map file into memory.\n"
+#define ERROR_MUNMAP "[Error] Failed to unmap file from memory.\n"
+#define ERROR_SEND_MSG "[Error] Could not send message to server.\n"
+#define ERROR_RECV_MSG "[Error] Could not receive message from server.\n"
+#define ERROR_CONNECT "[Error] Could not establish connection with server.\n"
+#define ERROR_SPRINTF "[Error] sprintf().\n"
+#define ERROR_SSCANF "[Error] sscanf().\n"
+#define ERROR_OPEN "[Error] Failed to open file.\n"
+#define ERROR_FSTAT "[Error] Failed to get file attributes.\n"
+#define ERROR_FGETS "[Error] Could not read from stdin.\n"
+#define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
 
-#define INVALID_USER_ID "The ID must be a 6-digit IST student number."
-#define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters."
-#define INVALID_AUCTION_ID "The AID must be a 3-digit number."
-#define INVALID_AUCTION_NAME "The auction name must be composed of up to 10 alphanumeric characters."
-#define INVALID_AUCTION_VALUE "The auction start value must be composed of up to 6 digits."
-#define INVALID_AUCTION_DURATION "The auction duration must be composed of up to 5 digits."
+#define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
+#define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters.\n"
+#define INVALID_AUCTION_ID "The AID must be a 3-digit number.\n"
+#define INVALID_AUCTION_NAME "The auction name must be composed of up to 10 alphanumeric characters.\n"
+#define INVALID_AUCTION_VALUE "The auction start value must be composed of up to 6 digits.\n"
+#define INVALID_AUCTION_DURATION "The auction duration must be composed of up to 5 digits.\n"
 #define INVALID_ASSET_NAME \
-    "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'."
+    "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n"
 
 #define DEBUG 1
 
@@ -83,7 +85,7 @@ char user_pwd[USER_PWD_LEN+1];
 int islogged = 0;
 
 void panic(char *str) {
-    fprintf(stderr, "%s\n", str);
+    fprintf(stderr, "%s", str);
     exit(EXIT_FAILURE);
 }
 
@@ -98,6 +100,21 @@ int tcp_socket() {
 }
 
 /* ---- Validators ---- */
+
+/**
+ * A misc between a strcmp and a memcmp.
+ * Checks if a given string matches a given region of length len.
+ * Returns 1 if both regions are equal, or 0 otherwise.
+*/
+int str_mem_cmp(char *str, char *region, ssize_t len) {
+    while (len--) {
+        if ((*str == 0) || (*str++ != *region++)) {
+            return 0;
+        }
+    }
+
+    return (*str == 0);
+}
 
 int str_starts_with(char *prefix, char *str) {
     while (*prefix != '\0') {
@@ -153,17 +170,17 @@ void command_login(char *temp_uid, char *temp_pwd) {
 
     close(serverfd);
 
-    if (str_starts_with("RLI NOK\n", buffer)) {
+    if (str_mem_cmp("RLI NOK\n", buffer, received)) {
         printf("Incorrect login attempt.\n");
-    } else if (str_starts_with("RLI OK\n", buffer)) {
+    } else if (str_mem_cmp("RLI OK\n", buffer, received)) {
         printf("Successful login.\n");
         islogged = 1;
-    } else if (str_starts_with("RLI REG\n", buffer)) {
+    } else if (str_mem_cmp("RLI REG\n", buffer, received)) {
         printf("New user registered.\n");
         islogged = 1;
-    } else if (str_starts_with("RLI ERR\n", buffer)) {
+    } else if (str_mem_cmp("RLI ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 
@@ -205,18 +222,18 @@ void command_logout() {
 
     close(serverfd);
 
-    if (str_starts_with("RLO OK\n", buffer)) {
+    if (str_mem_cmp("RLO OK\n", buffer, received)) {
         printf("Successful logout.\n");
         memset(user_uid, 0, USER_ID_LEN);
         memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
-    } else if (str_starts_with("RLO NOK\n", buffer)) {
+    } else if (str_mem_cmp("RLO NOK\n", buffer, received)) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RLO UNR\n", buffer)) {
+    } else if (str_mem_cmp("RLO UNR\n", buffer, received)) {
         printf("Unknown user.\n");
-    } else if (str_starts_with("RLO ERR\n", buffer)) {
+    } else if (str_mem_cmp("RLO ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -251,16 +268,16 @@ void command_unregister() {
     
     close(serverfd);
 
-    if (str_starts_with("RUR OK\n", buffer)) {
+    if (str_mem_cmp("RUR OK\n", buffer, received)) {
         printf("Successful unregister.\n");
         islogged = 0;
-    } else if (str_starts_with("RUR NOK\n", buffer)) {
+    } else if (str_mem_cmp("RUR NOK\n", buffer, received)) {
         printf("Unknown user.\n");
-    } else if (str_starts_with("RUR UNR\n", buffer)) {
+    } else if (str_mem_cmp("RUR UNR\n", buffer, received)) {
         printf("Incorrect unregister attempt.\n");
-    } else if (str_starts_with("RUR ERR\n", buffer)) {
+    } else if (str_mem_cmp("RUR ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -383,13 +400,13 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         }
 
         printf("New auction opened: %s.\n", aid);
-    } else if (str_starts_with("ROA NOK\n", buffer)) {
+    } else if (str_mem_cmp("ROA NOK\n", buffer, received)) {
         printf("Auction could not be started.\n");
-    } else if (str_starts_with("ROA NLG\n", buffer)) {
+    } else if (str_mem_cmp("ROA NLG\n", buffer, received)) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("ROA ERR\n", buffer)) {
+    } else if (str_mem_cmp("ROA ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -440,19 +457,19 @@ void command_bid(char *aid, char *value) {
 
     close(serverfd);
 
-    if (str_starts_with("RBD NOK\n", buffer)) {
+    if (str_mem_cmp("RBD NOK\n", buffer, received)) {
         printf("Auction not active.\n");
-    } else if (str_starts_with("RBD NGL\n", buffer)) {
+    } else if (str_mem_cmp("RBD NGL\n", buffer, received)) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RBD ACC\n", buffer)) {
+    } else if (str_mem_cmp("RBD ACC\n", buffer, received)) {
         printf("Bid accepted.\n");
-    } else if (str_starts_with("RBD REF\n", buffer)) {
+    } else if (str_mem_cmp("RBD REF\n", buffer, received)) {
         printf("Bid refused: a larger a bid has already been placed.\n");
-    } else if (str_starts_with("RBD ILG\n", buffer)) {
+    } else if (str_mem_cmp("RBD ILG\n", buffer, received)) {
         printf("That auction is hosted by you.\n");
-    } else if (str_starts_with("ROA ERR\n", buffer)) {
+    } else if (str_mem_cmp("ROA ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 
@@ -500,19 +517,19 @@ void command_close(char *aid) {
 
     close(serverfd);
 
-    if (str_starts_with("RCL OK\n", buffer)) {
+    if (str_mem_cmp("RCL OK\n", buffer, received)) {
         printf("Auction was successfully closed.\n");
-    } else if (str_starts_with("RCL NLG\n", buffer)) {
+    } else if (str_mem_cmp("RCL NLG\n", buffer, received)) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RCL EAU\n", buffer)) {
+    } else if (str_mem_cmp("RCL EAU\n", buffer, received)) {
         printf("The auction %s doesn't exist.\n", aid);
-    } else if (str_starts_with("RCL EOW\n", buffer)) {
+    } else if (str_mem_cmp("RCL EOW\n", buffer, received)) {
         printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
-    } else if (str_starts_with("RCL END\n", buffer)) {
+    } else if (str_mem_cmp("RCL END\n", buffer, received)) {
         printf("The auction %s has already ended.\n", aid);
-    } else if (str_starts_with("RCL ERR\n", buffer)) {
+    } else if (str_mem_cmp("RCL ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -547,9 +564,9 @@ void command_myauctions() {
 
     close(serverfd);
 
-    if (str_starts_with("RMA NOK\n", buffer)) {
+    if (str_mem_cmp("RMA NOK\n", buffer, received)) {
         printf("The user %s has no ongoing auctions.\n", user_uid);
-    } else if (str_starts_with("RMA NLG\n", buffer)) {
+    } else if (str_mem_cmp("RMA NLG\n", buffer, received)) {
         printf("User not logged in.\n");
     } else if (str_starts_with("RMA OK ", buffer)) {
         printf("List of auctions owned by user %s:\n", user_uid);
@@ -563,9 +580,9 @@ void command_myauctions() {
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
-    } else if (str_starts_with("RMA ERR\n", buffer)) {
+    } else if (str_mem_cmp("RMA ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -600,9 +617,9 @@ void command_mybids() {
 
     close(serverfd);
 
-    if (str_starts_with("RMB NOK\n", buffer)) {
+    if (str_mem_cmp("RMB NOK\n", buffer, received)) {
         printf("The user %s has no ongoing bids.\n", user_uid);
-    } else if (str_starts_with("RMB NLG\n", buffer)) {
+    } else if (str_mem_cmp("RMB NLG\n", buffer, received)) {
         printf("User not logged in.\n");
     } else if (str_starts_with("RMB OK ", buffer)) {
         printf("List of auctions for which user %s has placed bids:\n", user_uid);
@@ -616,9 +633,9 @@ void command_mybids() {
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
-    } else if (str_starts_with("RMB ERR\n", buffer)) {
+    } else if (str_mem_cmp("RMB ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -644,7 +661,7 @@ void command_list() {
 
     close(serverfd);
 
-    if (str_starts_with("RLS NOK\n", buffer)) {
+    if (str_mem_cmp("RLS NOK\n", buffer, received)) {
         printf("No auction was started yet.\n");
     } else if (str_starts_with("RLS OK ", buffer)) {
         printf("List of ongoing auctions:\n");
@@ -664,9 +681,9 @@ void command_list() {
                 printf("Auction %s.\n", aid);
             }
         }
-    } else if (str_starts_with("RLS ERR\n", buffer)) {
+    } else if (str_mem_cmp("RLS ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 }
@@ -705,7 +722,7 @@ void command_show_asset(char *aid) {
         panic(ERROR_RECV_MSG);
     }
 
-    if (str_starts_with("RSA NOK\n", buffer)) {
+    if (str_mem_cmp("RSA NOK\n", buffer, received)) {
         printf("No file to be sent or error ocurred.\n");
     } else if (str_starts_with("RSA OK ", buffer)) {
         char fname[FILENAME_LEN];
@@ -752,9 +769,9 @@ void command_show_asset(char *aid) {
         }
 
         close(fd);
-    } else if (str_starts_with("RSA ERR\n", buffer)) {
+    } else if (str_mem_cmp("RSA ERR\n", buffer, received)) {
         printf("Received error message.\n");
-    } else if (str_starts_with("ERR\n", buffer)) {
+    } else if (str_mem_cmp("ERR\n", buffer, received)) {
         printf("Received general error message.\n");
     }
 
