@@ -63,6 +63,18 @@ int validate_asset_name(char *str) {
     return 0;
 }
 
+int validate_file_size(char *str) {
+    if (!str) return 0;
+
+    for (int i = 0; i <= FILE_SIZE_LEN; i++, str++) {
+        if (!isdigit(*str)) {
+            return (*str == '\0');
+        }
+    }
+    
+    return 0;
+}
+
 int validate_auction_duration(char *str) {
     if (!str) return 0;
 

@@ -711,50 +711,80 @@ void command_show_asset(char *aid) {
     if (prefixspn("RSA NOK\n", buffer) == received) {
         printf("No file to be sent or error ocurred.\n");
     } else if (prefixspn("RSA OK ", buffer) == 7) {
-        char fname[FILENAME_LEN];
-        char fdata[BUFFER_LEN];
-        off_t fsize;
-
-        if (sscanf(buffer, "RSA OK %s %ld", fname, &fsize) < 0) {
-            // TODO: fix bug where sscanf fails
+        char *fname = buffer + 7;
+        
+        char *fsize = strchr(fname, ' ');
+        if (!fsize) {
+            printf("For some unknown reason, we did not receive the file size.\n");
             close(serverfd);
-            panic(ERROR_SSCANF);
+            return;
         }
+        *fsize = '\0';
+        while (*(++fsize) == ' ');
+
+        char *fdata = strchr(fsize, ' ');
+        if (!fdata) {
+            printf("For some unknown reason, we did not receive the file data.\n");
+            close(serverfd);
+            return;
+        }
+        *fdata = '\0';
+        while (*(++fdata) == ' ');
 
         if (!validate_asset_name(fname)) {
             close(serverfd);
-            printf(INVALID_ASSET_NAME);
+            printf("Received invalid asset name from auction server.\n");
             return;
         }
 
-        /* char path[BUFFER_LEN];
-        if (sprintf(path, "received_assets/%s", fname) < 0) {
+        if (!validate_file_size(fsize)) {
             close(serverfd);
-            panic("Error: sprintf().\n");
-        } */
+            printf("Received invalid file size from auction server.\n");
+            return;
+        }
 
-        int fd = open(fname, O_CREAT|O_WRONLY|O_TRUNC, 00770); // user and group can write, read and execute
+        if (sprintf(buffer, "output/%s", fname) < 0) {
+            close(serverfd);
+            panic(ERROR_SPRINTF);
+        }
+
+        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT);
         if (fd == -1) {
             close(serverfd);
-            printf("%s\n", strerror(errno));
             panic(ERROR_OPEN);
         }
 
-        // TODO: implement loop to read from socket and write to file
-        ssize_t count = 0;
-        while (count < fsize) {
-            ssize_t written = write(fd, fdata + count, fsize);
-            if (written == -1) {
-                close(serverfd);
-                close(fd);
-                panic("Error: write.\n");
-            }
-            printf("debug\n");
+        ssize_t to_write = (buffer + received) - fdata;
+        ssize_t written = 0;
 
-            count += written;
+        while (to_write > written) {
+            written += write(fd, fdata+written, to_write-written);
         }
 
+        printf("%ld, %ld, %ld, %ld\n", received, (off_t) *fsize, to_write, written);
+        fflush(stdin);
+
+        char packet[BIG_BUFFER_LEN];
+        off_t remaining = (off_t) *fsize - written;
+
+        while (remaining) {
+            written = 0;
+            to_write = read(serverfd, packet, BIG_BUFFER_LEN);
+            if (to_write == -1) {
+                close(serverfd);
+                close(fd);
+                panic(ERROR_RECV_MSG);
+            }
+
+            while (to_write > written) {
+                written += write(fd, fdata+written, to_write-written);
+            }
+
+            remaining -= written;
+        }
+        
         close(fd);
+        close(serverfd);
     } else if (prefixspn("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
