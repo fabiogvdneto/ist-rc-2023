@@ -102,28 +102,14 @@ int tcp_socket() {
 /* ---- Validators ---- */
 
 /**
- * A misc between a strcmp and a memcmp.
- * Checks if a given string matches a given region of length len.
- * Returns 1 if both regions are equal, or 0 otherwise.
+ * This fucntion is similar to strspn() builtin function, but the initial segment can only be 
+ * located at the start of the string.
+ * Returns the number of bytes from prefix that matches the given string.
 */
-int str_mem_cmp(char *str, char *region, ssize_t len) {
-    while (len--) {
-        if ((*str == 0) || (*str++ != *region++)) {
-            return 0;
-        }
-    }
-
-    return (*str == 0);
-}
-
-int str_starts_with(char *prefix, char *str) {
-    while (*prefix != '\0') {
-        if ((*str == '\0') || *(prefix++) != *(str++)) {
-            return 0;
-        }
-    }
-
-    return 1;
+int prefixspn(char *prefix, char *str) {
+    int i = 0;
+    while (*prefix && (*prefix++ == *str++)) i++;
+    return i;
 }
 
 /* ---- Commands ---- */
@@ -170,17 +156,17 @@ void command_login(char *temp_uid, char *temp_pwd) {
 
     close(serverfd);
 
-    if (str_mem_cmp("RLI NOK\n", buffer, received)) {
+    if (prefixspn("RLI NOK\n", buffer) == received) {
         printf("Incorrect login attempt.\n");
-    } else if (str_mem_cmp("RLI OK\n", buffer, received)) {
+    } else if (prefixspn("RLI OK\n", buffer) == received) {
         printf("Successful login.\n");
         islogged = 1;
-    } else if (str_mem_cmp("RLI REG\n", buffer, received)) {
+    } else if (prefixspn("RLI REG\n", buffer) == received) {
         printf("New user registered.\n");
         islogged = 1;
-    } else if (str_mem_cmp("RLI ERR\n", buffer, received)) {
+    } else if (prefixspn("RLI ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 
@@ -222,18 +208,18 @@ void command_logout() {
 
     close(serverfd);
 
-    if (str_mem_cmp("RLO OK\n", buffer, received)) {
+    if (prefixspn("RLO OK\n", buffer) == received) {
         printf("Successful logout.\n");
         memset(user_uid, 0, USER_ID_LEN);
         memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
-    } else if (str_mem_cmp("RLO NOK\n", buffer, received)) {
+    } else if (prefixspn("RLO NOK\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_mem_cmp("RLO UNR\n", buffer, received)) {
+    } else if (prefixspn("RLO UNR\n", buffer) == received) {
         printf("Unknown user.\n");
-    } else if (str_mem_cmp("RLO ERR\n", buffer, received)) {
+    } else if (prefixspn("RLO ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -268,16 +254,16 @@ void command_unregister() {
     
     close(serverfd);
 
-    if (str_mem_cmp("RUR OK\n", buffer, received)) {
+    if (prefixspn("RUR OK\n", buffer) == received) {
         printf("Successful unregister.\n");
         islogged = 0;
-    } else if (str_mem_cmp("RUR NOK\n", buffer, received)) {
+    } else if (prefixspn("RUR NOK\n", buffer) == received) {
         printf("Unknown user.\n");
-    } else if (str_mem_cmp("RUR UNR\n", buffer, received)) {
+    } else if (prefixspn("RUR UNR\n", buffer) == received) {
         printf("Incorrect unregister attempt.\n");
-    } else if (str_mem_cmp("RUR ERR\n", buffer, received)) {
+    } else if (prefixspn("RUR ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -389,7 +375,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     close(serverfd);
 
-    if (str_starts_with("ROA OK ", buffer)) {
+    if (prefixspn("ROA OK ", buffer) == 7) {
         char aid[AUCTION_ID_LEN+1];
 
         sscanf(buffer, "ROA OK %s\n", aid);
@@ -400,13 +386,13 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         }
 
         printf("New auction opened: %s.\n", aid);
-    } else if (str_mem_cmp("ROA NOK\n", buffer, received)) {
+    } else if (prefixspn("ROA NOK\n", buffer) == received) {
         printf("Auction could not be started.\n");
-    } else if (str_mem_cmp("ROA NLG\n", buffer, received)) {
+    } else if (prefixspn("ROA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_mem_cmp("ROA ERR\n", buffer, received)) {
+    } else if (prefixspn("ROA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -457,19 +443,19 @@ void command_bid(char *aid, char *value) {
 
     close(serverfd);
 
-    if (str_mem_cmp("RBD NOK\n", buffer, received)) {
+    if (prefixspn("RBD NOK\n", buffer) == received) {
         printf("Auction not active.\n");
-    } else if (str_mem_cmp("RBD NGL\n", buffer, received)) {
+    } else if (prefixspn("RBD NGL\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_mem_cmp("RBD ACC\n", buffer, received)) {
+    } else if (prefixspn("RBD ACC\n", buffer) == received) {
         printf("Bid accepted.\n");
-    } else if (str_mem_cmp("RBD REF\n", buffer, received)) {
+    } else if (prefixspn("RBD REF\n", buffer) == received) {
         printf("Bid refused: a larger a bid has already been placed.\n");
-    } else if (str_mem_cmp("RBD ILG\n", buffer, received)) {
+    } else if (prefixspn("RBD ILG\n", buffer) == received) {
         printf("That auction is hosted by you.\n");
-    } else if (str_mem_cmp("ROA ERR\n", buffer, received)) {
+    } else if (prefixspn("ROA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 
@@ -517,19 +503,19 @@ void command_close(char *aid) {
 
     close(serverfd);
 
-    if (str_mem_cmp("RCL OK\n", buffer, received)) {
+    if (prefixspn("RCL OK\n", buffer) == received) {
         printf("Auction was successfully closed.\n");
-    } else if (str_mem_cmp("RCL NLG\n", buffer, received)) {
+    } else if (prefixspn("RCL NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_mem_cmp("RCL EAU\n", buffer, received)) {
+    } else if (prefixspn("RCL EAU\n", buffer) == received) {
         printf("The auction %s doesn't exist.\n", aid);
-    } else if (str_mem_cmp("RCL EOW\n", buffer, received)) {
+    } else if (prefixspn("RCL EOW\n", buffer) == received) {
         printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
-    } else if (str_mem_cmp("RCL END\n", buffer, received)) {
+    } else if (prefixspn("RCL END\n", buffer) == received) {
         printf("The auction %s has already ended.\n", aid);
-    } else if (str_mem_cmp("RCL ERR\n", buffer, received)) {
+    } else if (prefixspn("RCL ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -564,11 +550,11 @@ void command_myauctions() {
 
     close(serverfd);
 
-    if (str_mem_cmp("RMA NOK\n", buffer, received)) {
+    if (prefixspn("RMA NOK\n", buffer) == received) {
         printf("The user %s has no ongoing auctions.\n", user_uid);
-    } else if (str_mem_cmp("RMA NLG\n", buffer, received)) {
+    } else if (prefixspn("RMA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RMA OK ", buffer)) {
+    } else if (prefixspn("RMA OK ", buffer) == 7) {
         printf("List of auctions owned by user %s:\n", user_uid);
 
         char aid[AUCTION_ID_LEN+1];
@@ -580,9 +566,9 @@ void command_myauctions() {
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
-    } else if (str_mem_cmp("RMA ERR\n", buffer, received)) {
+    } else if (prefixspn("RMA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -617,11 +603,11 @@ void command_mybids() {
 
     close(serverfd);
 
-    if (str_mem_cmp("RMB NOK\n", buffer, received)) {
+    if (prefixspn("RMB NOK\n", buffer) == received) {
         printf("The user %s has no ongoing bids.\n", user_uid);
-    } else if (str_mem_cmp("RMB NLG\n", buffer, received)) {
+    } else if (prefixspn("RMB NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (str_starts_with("RMB OK ", buffer)) {
+    } else if (prefixspn("RMB OK ", buffer) == 7) {
         printf("List of auctions for which user %s has placed bids:\n", user_uid);
 
         char aid[AUCTION_ID_LEN+1];
@@ -633,9 +619,9 @@ void command_mybids() {
 
             printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
         }
-    } else if (str_mem_cmp("RMB ERR\n", buffer, received)) {
+    } else if (prefixspn("RMB ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -661,9 +647,9 @@ void command_list() {
 
     close(serverfd);
 
-    if (str_mem_cmp("RLS NOK\n", buffer, received)) {
+    if (prefixspn("RLS NOK\n", buffer) == received) {
         printf("No auction was started yet.\n");
-    } else if (str_starts_with("RLS OK ", buffer)) {
+    } else if (prefixspn("RLS OK ", buffer) == 7) {
         printf("List of ongoing auctions:\n");
         char aid[AUCTION_ID_LEN+1];
         int status;
@@ -681,9 +667,9 @@ void command_list() {
                 printf("Auction %s.\n", aid);
             }
         }
-    } else if (str_mem_cmp("RLS ERR\n", buffer, received)) {
+    } else if (prefixspn("RLS ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 }
@@ -722,9 +708,9 @@ void command_show_asset(char *aid) {
         panic(ERROR_RECV_MSG);
     }
 
-    if (str_mem_cmp("RSA NOK\n", buffer, received)) {
+    if (prefixspn("RSA NOK\n", buffer) == received) {
         printf("No file to be sent or error ocurred.\n");
-    } else if (str_starts_with("RSA OK ", buffer)) {
+    } else if (prefixspn("RSA OK ", buffer) == 7) {
         char fname[FILENAME_LEN];
         char fdata[BUFFER_LEN];
         off_t fsize;
@@ -769,9 +755,9 @@ void command_show_asset(char *aid) {
         }
 
         close(fd);
-    } else if (str_mem_cmp("RSA ERR\n", buffer, received)) {
+    } else if (prefixspn("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (str_mem_cmp("ERR\n", buffer, received)) {
+    } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 
