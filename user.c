@@ -54,6 +54,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define ERROR_FGETS "[Error] Could not read from stdin.\n"
 #define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
 
+#define INVALID_PROTOCOL_MSG "[Error] Received invalid message from auction server.\n"
 #define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
 #define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters.\n"
 #define INVALID_AUCTION_ID "The AID must be a 3-digit number.\n"
@@ -719,8 +720,7 @@ void command_show_asset(char *aid) {
             close(serverfd);
             return;
         }
-        *fsize = '\0';
-        while (*(++fsize) == ' ');
+        *fsize++ = '\0';
 
         char *fdata = strchr(fsize, ' ');
         if (!fdata) {
@@ -728,8 +728,7 @@ void command_show_asset(char *aid) {
             close(serverfd);
             return;
         }
-        *fdata = '\0';
-        while (*(++fdata) == ' ');
+        *fdata++ = '\0';
 
         if (!validate_asset_name(fname)) {
             close(serverfd);
@@ -748,43 +747,50 @@ void command_show_asset(char *aid) {
             panic(ERROR_SPRINTF);
         }
 
-        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT);
+        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
         if (fd == -1) {
             close(serverfd);
             panic(ERROR_OPEN);
         }
 
+        ssize_t remaining = atol(fsize);
         ssize_t to_write = (buffer + received) - fdata;
         ssize_t written = 0;
+
+        to_write = (remaining > to_write) ? to_write : remaining;
 
         while (to_write > written) {
             written += write(fd, fdata+written, to_write-written);
         }
 
-        printf("%ld, %ld, %ld, %ld\n", received, (off_t) *fsize, to_write, written);
-        fflush(stdin);
-
         char packet[BIG_BUFFER_LEN];
-        off_t remaining = (off_t) *fsize - written;
 
-        while (remaining) {
-            written = 0;
-            to_write = read(serverfd, packet, BIG_BUFFER_LEN);
+        while (remaining -= written) {
+            to_write = (remaining > BIG_BUFFER_LEN) ? BIG_BUFFER_LEN : remaining;
+            to_write = read(serverfd, packet, to_write);
             if (to_write == -1) {
                 close(serverfd);
                 close(fd);
                 panic(ERROR_RECV_MSG);
             }
 
-            while (to_write > written) {
-                written += write(fd, fdata+written, to_write-written);
+            if (to_write == 0) {
+                close(serverfd);
+                close(fd);
+                panic(INVALID_PROTOCOL_MSG);
             }
 
-            remaining -= written;
+            written = 0;
+            while (to_write > written) {
+                written += write(fd, packet+written, to_write-written);
+            }
         }
+
+        // read '\n'?
         
         close(fd);
         close(serverfd);
+        printf("Download complete: %s\n", buffer);
     } else if (prefixspn("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
