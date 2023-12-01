@@ -107,9 +107,9 @@ int tcp_socket() {
  * Returns the number of bytes from prefix that matches the given string.
 */
 int prefixspn(char *prefix, char *str) {
-    int i = 0;
-    while (*prefix && (*prefix++ == *str++)) i++;
-    return i;
+    char *start = str;
+    while (*prefix && (*prefix++ == *str++));
+    return (str - start);
 }
 
 /* ---- Commands ---- */
