@@ -29,7 +29,7 @@ int validate_user_password(char *str) {
 int validate_auction_id(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i < AUCTION_ID_MAX_LEN; i++) {
+    for (int i = 0; i < AUCTION_ID_LEN; i++) {
         if (!isdigit(*str++)) {
             return 0;
         }

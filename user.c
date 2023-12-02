@@ -377,7 +377,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     close(serverfd);
 
     if (prefixspn("ROA OK ", buffer) == 7) {
-        char aid[AUCTION_ID_MAX_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
 
         sscanf(buffer, "ROA OK %s\n", aid);
 
@@ -558,7 +558,7 @@ void command_myauctions() {
     } else if (prefixspn("RMA OK ", buffer) == 7) {
         printf("List of auctions owned by user %s:\n", user_uid);
 
-        char aid[AUCTION_ID_MAX_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
@@ -611,7 +611,7 @@ void command_mybids() {
     } else if (prefixspn("RMB OK ", buffer) == 7) {
         printf("List of auctions for which user %s has placed bids:\n", user_uid);
 
-        char aid[AUCTION_ID_MAX_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
@@ -652,7 +652,7 @@ void command_list() {
         printf("No auction was started yet.\n");
     } else if (prefixspn("RLS OK ", buffer) == 7) {
         printf("List of ongoing auctions:\n");
-        char aid[AUCTION_ID_MAX_LEN+1];
+        char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
             if (sscanf(ptr, " %s %d", aid, &status) < 0) {
