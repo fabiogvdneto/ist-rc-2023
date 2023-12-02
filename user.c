@@ -54,7 +54,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define ERROR_FGETS "[Error] Could not read from stdin.\n"
 #define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
 
-#define INVALID_PROTOCOL_MSG "[Error] Received invalid message from auction server.\n"
+#define INVALID_PROTOCOL_MSG "Received invalid message from auction server.\n"
 #define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
 #define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters.\n"
 #define INVALID_AUCTION_ID "The AID must be a 3-digit number.\n"
