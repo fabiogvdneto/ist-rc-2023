@@ -26,22 +26,22 @@ int validate_user_password(char *str) {
     return (*str == '\0');
 }
 
-int validate_auction_name(char *str) {
+int validate_auction_id(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i <= AUCTION_NAME_LEN; i++, str++) {
-        if (!isalnum(*str)) {
-            return (*str == '\0');
+    for (int i = 0; i < AUCTION_ID_MAX_LEN; i++) {
+        if (!isdigit(*str++)) {
+            return 0;
         }
     }
 
-    return 0;
+    return (*str == '\0');
 }
 
-int validate_asset_name(char *str) {
+int validate_file_name(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i <= ASSET_NAME_LEN; i++, str++) {
+    for (int i = 0; i <= FILE_NAME_MAX_LEN; i++, str++) {
         char c = *str;
 
         // Check if all characters  are either alphanumeric or '-', '_', '.'.
@@ -49,7 +49,7 @@ int validate_asset_name(char *str) {
             if ((c != '\0') || (i < 5)) return 0;
 
             // Check if last 3 characters are letters.
-            for (i = 0; i < ASSET_NAME_EXTENSION_LEN; i++) {
+            for (i = 0; i < FILE_NAME_EXTENSION_LEN; i++) {
                 if (!isalpha(*(--str))) {
                     return 0;
                 }
@@ -66,7 +66,7 @@ int validate_asset_name(char *str) {
 int validate_file_size(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i <= FILE_SIZE_LEN; i++, str++) {
+    for (int i = 0; i <= FILE_SIZE_MAX_LEN; i++, str++) {
         if (!isdigit(*str)) {
             return (*str == '\0');
         }
@@ -75,10 +75,22 @@ int validate_file_size(char *str) {
     return 0;
 }
 
+int validate_auction_name(char *str) {
+    if (!str) return 0;
+
+    for (int i = 0; i <= AUCTION_NAME_MAX_LEN; i++, str++) {
+        if (!isalnum(*str)) {
+            return (*str == '\0');
+        }
+    }
+
+    return 0;
+}
+
 int validate_auction_duration(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i <= AUCTION_DURATION_LEN; i++, str++) {
+    for (int i = 0; i <= AUCTION_DURATION_MAX_LEN; i++, str++) {
         if (!isdigit(*str)) {
             return (*str == '\0');
         }
@@ -97,16 +109,4 @@ int validate_auction_value(char *str) {
     }
     
     return 0;
-}
-
-int validate_auction_id(char *str) {
-    if (!str) return 0;
-
-    for (int i = 0; i < AUCTION_ID_LEN; i++) {
-        if (!isdigit(*str++)) {
-            return 0;
-        }
-    }
-
-    return (*str == '\0');
 }
