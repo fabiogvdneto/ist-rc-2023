@@ -245,11 +245,13 @@ void command_unregister() {
     }
 
     if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
+        close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
+        close(serverfd);
         panic(ERROR_RECV_MSG);
     }
     
@@ -479,11 +481,13 @@ void command_myauctions() {
     }
 
     if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
+        close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
+        close(serverfd);
         panic(ERROR_RECV_MSG);
     }
 
@@ -532,11 +536,13 @@ void command_mybids() {
     }
 
     if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
+        close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
     ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
     if (received == -1) {
+        close(serverfd);
         panic(ERROR_RECV_MSG);
     }
 
@@ -738,7 +744,7 @@ void command_show_asset(char *aid) {
     close(serverfd);
 }
 
-/* bid <aid> <value> */
+/* bid <aid> <value> OR b <aid> <value> */
 void command_bid(char *aid, char *value) {
     if (!islogged) {
         printf(ERROR_NOT_LOGGED_IN);
@@ -794,12 +800,58 @@ void command_bid(char *aid, char *value) {
         printf("Bid refused: a larger a bid has already been placed.\n");
     } else if (prefixspn("RBD ILG\n", buffer) == received) {
         printf("That auction is hosted by you.\n");
-    } else if (prefixspn("ROA ERR\n", buffer) == received) {
+    } else if (prefixspn("RBD ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
 
+}
+
+/* show_record <aid> OR sr <aid> */
+void command_show_record(char *aid) {
+    if (!validate_auction_id(aid)) {
+        printf(INVALID_AUCTION_ID);
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
+    int printed = sprintf(buffer, "SRC %s\n", aid);
+    if (printed < 0) {
+        panic(ERROR_SPRINTF);
+    }
+
+    int serverfd = udp_socket();
+    if (serverfd == -1) {
+        panic(ERROR_SOCKET);
+    }
+
+    if (sendto(serverfd, buffer, printed, 0, server_addr, server_addrlen) == -1) {
+        close(serverfd);
+        panic(ERROR_SEND_MSG);
+    }
+
+    // primeira parte da resposta - 82 bytes (3+1+2+1+6+1+10+1+24+1+6+1+19+1+5)
+    // segunda parte da resposta (que se repete até 50 vezes) - 50 * (1+1+1+6+1+6+1+19+1+5)
+    // terceira parte da resposta - 28 bytes (1+1+1+19+1+5)
+    // total - 2210 bytes
+    // criar novo buffer com tamanho menor?
+    char big_buffer[BIG_BUFFER_LEN];
+    ssize_t received = recv(serverfd, big_buffer, BUFFER_LEN, 0);
+    if (received == -1) {
+        close(serverfd);
+        panic(ERROR_RECV_MSG);
+    }
+
+    close(serverfd);
+
+    if (prefixspn("RRC NOK\n", big_buffer) == received) {
+        printf("Auction doesn't exist.\n");
+    } else if (prefixspn("RRC OK ", big_buffer) == 7) {
+        char *ptr = buffer;
+
+        
+    }
 }
 
 /* ---- Command Listener ---- */
