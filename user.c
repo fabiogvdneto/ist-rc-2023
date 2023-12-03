@@ -50,6 +50,7 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define ERROR_SPRINTF "[Error] sprintf().\n"
 #define ERROR_SSCANF "[Error] sscanf().\n"
 #define ERROR_OPEN "[Error] Failed to open file.\n"
+#define ERROR_MKDIR "[Error] Failed to create directory.\n"
 #define ERROR_FSTAT "[Error] Failed to get file attributes.\n"
 #define ERROR_FGETS "[Error] Could not read from stdin.\n"
 #define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
@@ -691,7 +692,20 @@ void command_show_asset(char *aid) {
             panic(ERROR_SPRINTF);
         }
 
-        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
+        // verificar daqui
+        int fd = open("output", O_RDONLY);
+        if (errno == ENOENT) {
+            if (mkdir("output", S_IRWXU) == -1) {
+                close(serverfd);
+                panic(ERROR_MKDIR);
+            } 
+        } else if (fd == -1) {
+            close(serverfd);
+            panic(ERROR_OPEN);
+        }
+        // até aqui
+
+        fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
         if (fd == -1) {
             close(serverfd);
             panic(ERROR_OPEN);
