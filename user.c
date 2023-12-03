@@ -257,6 +257,8 @@ void command_unregister() {
 
     if (prefixspn("RUR OK\n", buffer) == received) {
         printf("Successful unregister.\n");
+        memset(user_uid, 0, USER_ID_LEN);
+        memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
     } else if (prefixspn("RUR NOK\n", buffer) == received) {
         printf("Unknown user.\n");
@@ -396,70 +398,6 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     }
-}
-
-/* bid <aid> <value> */
-void command_bid(char *aid, char *value) {
-    if (!islogged) {
-        printf(ERROR_NOT_LOGGED_IN);
-        return;
-    }
-
-    if (!validate_auction_id(aid)) {
-        printf(INVALID_AUCTION_ID);
-        return;
-    }
-
-    if (!validate_auction_value(value)) {
-        printf(INVALID_AUCTION_VALUE);
-        return;
-    }
-
-    char buffer[BUFFER_LEN];
-    int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
-    if (printed < 0) {
-        panic(ERROR_SPRINTF);
-    }
-
-    int serverfd = tcp_socket();
-    if (serverfd == -1) {
-        panic(ERROR_SOCKET);
-    }
-
-    if (connect(serverfd, server_addr, server_addrlen) == -1) {
-        close(serverfd);
-        panic(ERROR_CONNECT);
-    }
-
-    if (write(serverfd, buffer, printed) == -1) {
-        close(serverfd);
-        panic(ERROR_SEND_MSG);
-    }
-
-    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
-    if (received == -1) {
-        close(serverfd);
-        panic(ERROR_RECV_MSG);
-    }
-
-    close(serverfd);
-
-    if (prefixspn("RBD NOK\n", buffer) == received) {
-        printf("Auction not active.\n");
-    } else if (prefixspn("RBD NGL\n", buffer) == received) {
-        printf("User not logged in.\n");
-    } else if (prefixspn("RBD ACC\n", buffer) == received) {
-        printf("Bid accepted.\n");
-    } else if (prefixspn("RBD REF\n", buffer) == received) {
-        printf("Bid refused: a larger a bid has already been placed.\n");
-    } else if (prefixspn("RBD ILG\n", buffer) == received) {
-        printf("That auction is hosted by you.\n");
-    } else if (prefixspn("ROA ERR\n", buffer) == received) {
-        printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
-    }
-
 }
 
 /* close <AID> */
@@ -798,6 +736,70 @@ void command_show_asset(char *aid) {
     }
 
     close(serverfd);
+}
+
+/* bid <aid> <value> */
+void command_bid(char *aid, char *value) {
+    if (!islogged) {
+        printf(ERROR_NOT_LOGGED_IN);
+        return;
+    }
+
+    if (!validate_auction_id(aid)) {
+        printf(INVALID_AUCTION_ID);
+        return;
+    }
+
+    if (!validate_auction_value(value)) {
+        printf(INVALID_AUCTION_VALUE);
+        return;
+    }
+
+    char buffer[BUFFER_LEN];
+    int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
+    if (printed < 0) {
+        panic(ERROR_SPRINTF);
+    }
+
+    int serverfd = tcp_socket();
+    if (serverfd == -1) {
+        panic(ERROR_SOCKET);
+    }
+
+    if (connect(serverfd, server_addr, server_addrlen) == -1) {
+        close(serverfd);
+        panic(ERROR_CONNECT);
+    }
+
+    if (write(serverfd, buffer, printed) == -1) {
+        close(serverfd);
+        panic(ERROR_SEND_MSG);
+    }
+
+    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
+    if (received == -1) {
+        close(serverfd);
+        panic(ERROR_RECV_MSG);
+    }
+
+    close(serverfd);
+
+    if (prefixspn("RBD NOK\n", buffer) == received) {
+        printf("Auction not active.\n");
+    } else if (prefixspn("RBD NGL\n", buffer) == received) {
+        printf("User not logged in.\n");
+    } else if (prefixspn("RBD ACC\n", buffer) == received) {
+        printf("Bid accepted.\n");
+    } else if (prefixspn("RBD REF\n", buffer) == received) {
+        printf("Bid refused: a larger a bid has already been placed.\n");
+    } else if (prefixspn("RBD ILG\n", buffer) == received) {
+        printf("That auction is hosted by you.\n");
+    } else if (prefixspn("ROA ERR\n", buffer) == received) {
+        printf("Received error message.\n");
+    } else if (prefixspn("ERR\n", buffer) == received) {
+        printf("Received general error message.\n");
+    }
+
 }
 
 /* ---- Command Listener ---- */
