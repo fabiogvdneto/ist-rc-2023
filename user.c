@@ -64,6 +64,8 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define INVALID_AUCTION_DURATION "The auction duration must be composed of up to 5 digits.\n"
 #define INVALID_ASSET_NAME \
     "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n"
+#define INVALID_DATE "The date must be in the format YYYY-MM-DD.\n"
+#define INVALID_TIME "The time must be in the format HH:MM:SS.\n"
 
 #define DEBUG 1
 
@@ -692,20 +694,12 @@ void command_show_asset(char *aid) {
             panic(ERROR_SPRINTF);
         }
 
-        // verificar daqui
-        int fd = open("output", O_RDONLY);
-        if (errno == ENOENT) {
-            if (mkdir("output", S_IRWXU) == -1) {
-                close(serverfd);
-                panic(ERROR_MKDIR);
-            } 
-        } else if (fd == -1) {
+        if (mkdir("output", S_IRWXU) == -1 && errno != EEXIST) {
             close(serverfd);
-            panic(ERROR_OPEN);
+            panic(ERROR_MKDIR);
         }
-        // até aqui
 
-        fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
+        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
         if (fd == -1) {
             close(serverfd);
             panic(ERROR_OPEN);
@@ -849,7 +843,6 @@ void command_show_record(char *aid) {
     // segunda parte da resposta (que se repete até 50 vezes) - 50 * (1+1+1+6+1+6+1+19+1+5)
     // terceira parte da resposta - 28 bytes (1+1+1+19+1+5)
     // total - 2210 bytes
-    // criar novo buffer com tamanho menor?
     char big_buffer[BIG_BUFFER_LEN];
     ssize_t received = recv(serverfd, big_buffer, BUFFER_LEN, 0);
     if (received == -1) {
@@ -862,9 +855,58 @@ void command_show_record(char *aid) {
     if (prefixspn("RRC NOK\n", big_buffer) == received) {
         printf("Auction doesn't exist.\n");
     } else if (prefixspn("RRC OK ", big_buffer) == 7) {
+        
         char *ptr = buffer;
 
-        
+        while (*ptr != '\n') {
+            if ((*ptr == ' ') && (*(ptr+1) == ' ')) {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
+            }
+        }
+
+        if ((ptr - buffer) != received) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
+
+        char *delim = " \n";
+        char *host_uid = strtok(buffer+7, delim);
+        if (!validate_user_id(host_uid)) {
+            printf(INVALID_USER_ID);
+            return;
+        }
+
+        char *auction_name = strtok(NULL, delim);
+        if (!validate_auction_name(auction_name)) {
+            printf(INVALID_AUCTION_NAME);
+            return;
+        }
+
+        char *asset_fname = strtok(NULL, delim);
+        if (!validate_file_name(asset_fname)) {
+            printf(INVALID_ASSET_NAME);
+            return;
+        }
+
+        char *start_value = strtok(NULL, delim);
+        if (!validate_auction_value(start_value)) {
+            printf(INVALID_AUCTION_VALUE);
+            return;
+        }
+
+        char *start_date = strtok(NULL, delim);
+        if (!validate_date(start_date)) {
+            printf(INVALID_DATE);
+            return;
+        }
+
+        char *start_time = strtok(NULL, delim);
+        if (!validate_time(start_time)) {
+            printf(INVALID_TIME);
+            return;
+        }
+
     }
 }
 
@@ -930,6 +972,8 @@ void handle_signals() {
     if (sigaction(SIGPIPE, &act, NULL) == -1) {
         panic(ERROR_SIGACTION);
     }
+
+    // SIGCHD (when child dies -> SIG_IGN)
 }
 
 int main(int argc, char **argv) {

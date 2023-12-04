@@ -11,6 +11,8 @@
 #define AUCTION_DURATION_MAX_LEN 5
 #define AUCTION_VALUE_LEN 6
 #define FILENAME_LEN 24
+#define DATE_LEN 10
+#define TIME_LEN 8
 
 int validate_user_id(char *str);
 

@@ -110,3 +110,41 @@ int validate_auction_value(char *str) {
     
     return 0;
 }
+
+int validate_date(char *str) {
+    if (!str) return 0;
+
+    if (strlen(str) != DATE_LEN) return 0;
+
+    if (atoi(str) == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < DATE_LEN; i++, str++) {
+        if ((i == 4 || i == 7)) {
+            if (*str != '-') {
+                return 0;
+            }
+        } else if (!isdigit(*str)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int validate_time(char *str) {
+    if (!str) return 0;
+
+    if (strlen(str) != TIME_LEN) return 0;
+
+    for (int i = 0; i < TIME_LEN; i++, str++) {
+        if ((i == 2 || i == 5)) {
+            if (*str != ':') {
+                return 0;
+            }
+        } else if (!isdigit(*str)) {
+            return 0;
+        }
+    }
+}
