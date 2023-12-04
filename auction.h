@@ -30,4 +30,8 @@ int validate_auction_value(char *str);
 
 int validate_auction_id(char *str);
 
+int validate_date(char *str);
+
+int validate_time(char *str);
+
 #endif

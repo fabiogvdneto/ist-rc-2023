@@ -1,4 +1,7 @@
 #include <ctype.h>
+#include <regex.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "auction.h"
 
@@ -116,18 +119,33 @@ int validate_date(char *str) {
 
     if (strlen(str) != DATE_LEN) return 0;
 
-    if (atoi(str) == 0) {
-        return 0;
-    }
+    if (str[4] != '-' || str[7] != '-') return 0;
 
-    for (int i = 0; i < DATE_LEN; i++, str++) {
-        if ((i == 4 || i == 7)) {
-            if (*str != '-') {
-                return 0;
-            }
-        } else if (!isdigit(*str)) {
+    char *delim = "-\n";
+
+    char *year = strtok(str, delim);
+    for (int i = 0; i < 4; i++) {
+        if (!isdigit(year[i])) {
             return 0;
         }
+    }
+    int year_num = atoi(year);
+    if (atoi(year) <= 0) return 0;
+
+    char *month = strtok(NULL, delim);
+    if (!isdigit(month[0]) || !isdigit(month[1])) return 0;
+    int month_num = atoi(month);
+    if (month_num < 1 || month_num > 12) return 0;
+
+    char *day = strtok(NULL, delim);
+    if (!isdigit(day[0]) || !isdigit(day[1])) return 0;
+    int day_num = atoi(day);
+    int month_days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month_num == 2 && day_num == 29 &&
+        !(year_num%400 == 0 || (year_num%4 == 0 && year_num%100 != 0))) {
+            return 0;
+    } else if (day_num < 1 || day_num > month_days[month_num-1]) {
+        return 0;
     }
 
     return 1;
@@ -138,13 +156,23 @@ int validate_time(char *str) {
 
     if (strlen(str) != TIME_LEN) return 0;
 
-    for (int i = 0; i < TIME_LEN; i++, str++) {
-        if ((i == 2 || i == 5)) {
-            if (*str != ':') {
-                return 0;
-            }
-        } else if (!isdigit(*str)) {
-            return 0;
-        }
+    if (str[2] != ':' || str[5] != ':') {
+        return 0;
     }
+
+    char *delim = ":\n";
+
+    char *hour = strtok(str, delim);
+    if (!isdigit(hour[0] || !isdigit(hour[1]))) return 0;
+    if (atoi(hour) < 0 || atoi(hour) > 23) return 0;
+
+    char *minutes = strtok(NULL, delim);
+    if (!isdigit(minutes[0]) || !isdigit(minutes[1])) return 0;
+    if (atoi(minutes) < 0 || atoi(minutes) > 59) return 0;
+
+    char *seconds = strtok(NULL, delim);
+    if (!isdigit(seconds[0]) || !isdigit(seconds[1])) return 0;
+    if (atoi(seconds) < 0 || atoi(seconds) > 59) return 0;
+
+    return 1;
 }

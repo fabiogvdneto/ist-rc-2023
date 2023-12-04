@@ -587,7 +587,7 @@ void command_list() {
     }
 
     char buffer[BIG_BUFFER_LEN];
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BIG_BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -607,6 +607,7 @@ void command_list() {
             }
 
             if (!validate_auction_id(aid)) {
+                printf("%s\n", aid[1]);
                 printf("The auction ID must be composed of 3 digits.\n");
                 return;
             }
