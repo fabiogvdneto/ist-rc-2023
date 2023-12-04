@@ -121,9 +121,12 @@ int validate_date(char *str) {
 
     if (str[4] != '-' || str[7] != '-') return 0;
 
+    char date[DATE_LEN];
+    memcpy(date, str, DATE_LEN);
+
     char *delim = "-\n";
 
-    char *year = strtok(str, delim);
+    char *year = strtok(date, delim);
     for (int i = 0; i < 4; i++) {
         if (!isdigit(year[i])) {
             return 0;
@@ -160,9 +163,12 @@ int validate_time(char *str) {
         return 0;
     }
 
+    char time[TIME_LEN];
+    memcpy(time, str, TIME_LEN);
+
     char *delim = ":\n";
 
-    char *hour = strtok(str, delim);
+    char *hour = strtok(time, delim);
     if (!isdigit(hour[0] || !isdigit(hour[1]))) return 0;
     if (atoi(hour) < 0 || atoi(hour) > 23) return 0;
 

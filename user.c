@@ -607,7 +607,6 @@ void command_list() {
             }
 
             if (!validate_auction_id(aid)) {
-                printf("%s\n", aid[1]);
                 printf("The auction ID must be composed of 3 digits.\n");
                 return;
             }
@@ -845,7 +844,7 @@ void command_show_record(char *aid) {
     // terceira parte da resposta - 28 bytes (1+1+1+19+1+5)
     // total - 2210 bytes
     char big_buffer[BIG_BUFFER_LEN];
-    ssize_t received = recv(serverfd, big_buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, big_buffer, BIG_BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -856,23 +855,24 @@ void command_show_record(char *aid) {
     if (prefixspn("RRC NOK\n", big_buffer) == received) {
         printf("Auction doesn't exist.\n");
     } else if (prefixspn("RRC OK ", big_buffer) == 7) {
-        
-        char *ptr = buffer;
+        printf("buffer: %s", big_buffer);
+        char *ptr = big_buffer;
 
         while (*ptr != '\n') {
             if ((*ptr == ' ') && (*(ptr+1) == ' ')) {
                 printf(INVALID_PROTOCOL_MSG);
                 return;
             }
+            ptr++;
         }
 
-        if ((ptr - buffer) != received) {
+        if ((ptr - big_buffer) != received-1) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
         char *delim = " \n";
-        char *host_uid = strtok(buffer+7, delim);
+        char *host_uid = strtok(big_buffer+7, delim);
         if (!validate_user_id(host_uid)) {
             printf(INVALID_USER_ID);
             return;
@@ -897,16 +897,29 @@ void command_show_record(char *aid) {
         }
 
         char *start_date = strtok(NULL, delim);
+        printf("%s\n", start_date);
         if (!validate_date(start_date)) {
             printf(INVALID_DATE);
             return;
         }
 
+        // TODO: fix this part (não lê bem o start_time)
         char *start_time = strtok(NULL, delim);
+        printf("%s\n", start_time);
         if (!validate_time(start_time)) {
             printf(INVALID_TIME);
             return;
         }
+
+        char *timeactive = strtok(NULL, delim);
+        if (!validate_auction_duration(timeactive)) {
+            printf(INVALID_AUCTION_DURATION);
+            return;
+        }
+
+        printf("Auction %s opened by user %s with name %s, asset \"%s\" and a \
+            start value of %s. It was opened on %s, %s to be active during %s seconds",
+            aid, host_uid, auction_name, asset_fname, start_value, start_time, start_date, timeactive);
 
     }
 }
@@ -953,7 +966,8 @@ void command_listener() {
             char *value = strtok(NULL, delim);
             command_bid(aid, value);
         } else if (!strcmp("show_record", label) || !strcmp("sr", label)) {
-            
+            char *aid = strtok(NULL, delim);
+            command_show_record(aid);
         } else {
             printf("Command not found.\n");
         }
