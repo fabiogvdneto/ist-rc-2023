@@ -823,8 +823,7 @@ void command_show_record(char *aid) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
-    memset(buffer, 0, BUFFER_LEN);
+    char buffer[BIG_BUFFER_LEN];
     int printed = sprintf(buffer, "SRC %s\n", aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -840,13 +839,7 @@ void command_show_record(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    // primeira parte da resposta - 82 bytes (3+1+2+1+6+1+10+1+24+1+6+1+19+1+5)
-    // segunda parte da resposta (que se repete até 50 vezes) - 50 * (1+1+1+6+1+6+1+19+1+5)
-    // terceira parte da resposta - 28 bytes (1+1+1+19+1+5)
-    // total - 2210 bytes
-    char big_buffer[BIG_BUFFER_LEN];
-    memset(big_buffer, 0, BIG_BUFFER_LEN);
-    ssize_t received = recv(serverfd, big_buffer, BIG_BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BIG_BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -854,140 +847,145 @@ void command_show_record(char *aid) {
 
     close(serverfd);
 
-    if (prefixspn("RRC NOK\n", big_buffer) == received) {
+    if (prefixspn("RRC NOK\n", buffer) == received) {
         printf("Auction doesn't exist.\n");
-    } else if (prefixspn("RRC OK ", big_buffer) == 7) {
-        printf("buffer: %s", big_buffer);
-        char *ptr = big_buffer;
+    } else if (prefixspn("RRC OK ", buffer) == 7) {
+        char *ptr = buffer;
 
-        while (*ptr != '\n') {
+        for (int i = 0; 1; i++, ptr++) {
+            if (i == received) {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
+            }
+
+            if (*ptr == '\n') {
+                if ((i+1) != received) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+                
+                break;
+            }
+
             if ((*ptr == ' ') && (*(ptr+1) == ' ')) {
                 printf(INVALID_PROTOCOL_MSG);
                 return;
             }
-            ptr++;
         }
 
-        if ((ptr - big_buffer) != received-1) {
+        *ptr = '\0';
+        char *delim = " ";
+        char *host_uid = strtok(buffer+7, delim);
+        char *auction_name = strtok(NULL, delim);
+        char *asset_fname = strtok(NULL, delim);
+        char *start_value = strtok(NULL, delim);
+        char *start_date = strtok(NULL, delim);
+        char *start_time = strtok(NULL, delim);
+        char *timeactive = strtok(NULL, delim);
+
+        if (!validate_user_id(host_uid)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        char *delim = " \n";
-        char *host_uid = strtok(big_buffer+7, delim);
-        if (!validate_user_id(host_uid)) {
-            printf(INVALID_USER_ID);
-            return;
-        }
-
-        char *auction_name = strtok(NULL, delim);
         if (!validate_auction_name(auction_name)) {
-            printf(INVALID_AUCTION_NAME);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        char *asset_fname = strtok(NULL, delim);
         if (!validate_file_name(asset_fname)) {
-            printf(INVALID_ASSET_NAME);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        char *start_value = strtok(NULL, delim);
         if (!validate_auction_value(start_value)) {
-            printf(INVALID_AUCTION_VALUE);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        char *start_date = strtok(NULL, delim);
         if (!validate_date(start_date)) {
-            printf(INVALID_DATE);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        // TODO: fix this part (não lê bem o start_time)
-        char *start_time = strtok(NULL, delim);
         if (!validate_time(start_time)) {
-            printf(INVALID_TIME);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        char *timeactive = strtok(NULL, delim);
         if (!validate_auction_duration(timeactive)) {
-            printf(INVALID_AUCTION_DURATION);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        printf("Auction %s opened by user %s with name %s, asset \"%s\" and a \
-         start value of %s. It was opened on %s, %s to be active during %s seconds",
-         aid, host_uid, auction_name, asset_fname, start_value, start_date, start_time, timeactive);
+        printf("%s %s %s\n", host_uid, auction_name, asset_fname);
+        printf("%s %s %s %s\n", start_value, start_date, start_time, timeactive);
         
-        int iter = 1;
-        char *letter = strtok(NULL, delim);
-        char *bidder_uid, *bid_value, *bid_date, *bid_time, *bid_sec_time;
-        if (!strcmp(letter, "B")) {
-            printf("List of bids placed in this auction:\n");
+        while ((ptr = strtok(NULL, delim))) {
+            if (!strcmp(ptr, "B")) {
+                char *bidder_uid = strtok(NULL, delim);
+                char *bid_value = strtok(NULL, delim);
+                char *bid_date = strtok(NULL, delim);
+                char *bid_time = strtok(NULL, delim);
+                char *bid_elapsed_time = strtok(NULL, delim);
+
+                if (!validate_user_id(bidder_uid)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_auction_value(bid_value)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_date(bid_date)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_time(bid_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_elapsed_time(bid_elapsed_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                printf("%s %s %s %s %s\n", bidder_uid, bid_value, bid_date, bid_time, bid_elapsed_time);
+            } else if (!strcmp(ptr, "E")) {
+                char *end_date = strtok(NULL, delim);
+                char *end_time = strtok(NULL, delim);
+                char *end_elapsed_time = strtok(NULL, delim);
+
+                if (strtok(NULL, delim)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_date(end_date)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_time(end_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                if (!validate_elapsed_time(end_elapsed_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                printf("%s %s %s\n", end_date, end_time, end_elapsed_time);
+            } else {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
+            }
         }
-
-        // só recebemos 50 bids ou ignoramos as que recebemos a mais?
-        while (!strcmp(letter, "B") && iter++ <= 50) {
-            bidder_uid = strtok(NULL, delim);
-            if (!validate_user_id(bidder_uid)) {
-                printf(INVALID_USER_ID);
-                return;
-            }
-
-            bid_value = strtok(NULL, delim);
-            if (!validate_auction_value(bid_value)) {
-                printf(INVALID_AUCTION_VALUE);
-                return;
-            }
-
-            bid_date = strtok(NULL, delim);
-            if (!validate_date(bid_date)) {
-                printf(INVALID_DATE);
-                return;
-            }
-
-            bid_time = strtok(NULL, delim);
-            if (!validate_time(bid_time)) {
-                printf(INVALID_TIME);
-                return;
-            }
-
-            bid_sec_time = strtok(NULL, delim);
-            if (!validate_auction_duration(bid_sec_time)) {
-                printf(INVALID_AUCTION_DURATION);
-                return;
-            }
-
-            // TODO: order bids by lowest value
-            printf("Bid %d was placed by user %s with value %s on %s, %s \
-             after %s seconds since the auction opening.\n", iter,
-             bidder_uid, bid_value, bid_date, bid_time, bid_sec_time);
-
-            letter = strtok(NULL, delim);
-        }
-
-        if (!strcmp(letter, "E")) {
-            char *end_date = strtok(NULL, delim);
-            if (!validate_date(end_date)) {
-                printf(INVALID_DATE);
-                return;
-            }
-
-            char *end_time = strtok(NULL, delim);
-            if (!validate_time(end_time)) {
-                printf(INVALID_TIME);
-                return;
-            }
-
-            char *end_sec_time = strtok(NULL, delim);
-            if (!validate_auction_duration(end_sec_time)) {
-                printf(INVALID_AUCTION_DURATION);
-                return;
-            }
-        }
-
     } else if (prefixspn("RRC ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {

@@ -13,6 +13,7 @@
 #define FILENAME_LEN 24
 #define DATE_LEN 10
 #define TIME_LEN 8
+#define ELAPSED_TIME_LEN 5
 
 int validate_user_id(char *str);
 
@@ -33,5 +34,7 @@ int validate_auction_id(char *str);
 int validate_date(char *str);
 
 int validate_time(char *str);
+
+int validate_elapsed_time(char *str);
 
 #endif

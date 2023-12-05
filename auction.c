@@ -5,6 +5,8 @@
 
 #include "auction.h"
 
+int days_of_month[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
 int validate_user_id(char *str) {
     if (!str) return 0;
 
@@ -114,73 +116,78 @@ int validate_auction_value(char *str) {
     return 0;
 }
 
+// Format: YYYY-MM-DD
 int validate_date(char *str) {
     if (!str) return 0;
 
-    char date[DATE_LEN+1];
-    memcpy(date, str, DATE_LEN);
-    date[-1] = '\0';
-
-    if (strlen(date) != DATE_LEN) return 0;
-
-    if (date[4] != '-' || date[7] != '-') return 0;
-
-    char *delim = "-\n";
-
-    char *year = strtok(date, delim);
+    int y = atoi(str);
     for (int i = 0; i < 4; i++) {
-        if (!isdigit(year[i])) {
+        if (!isdigit(*str++)) {
             return 0;
         }
     }
-    int year_num = atoi(year);
-    if (atoi(year) <= 0) return 0;
 
-    char *month = strtok(NULL, delim);
-    if (!isdigit(month[0]) || !isdigit(month[1])) return 0;
-    int month_num = atoi(month);
-    if (month_num < 1 || month_num > 12) return 0;
+    if ((*str++ != '-') || (y < 0) || (y >= 3000)) return 0;
 
-    char *day = strtok(NULL, delim);
-    if (!isdigit(day[0]) || !isdigit(day[1])) return 0;
-    int day_num = atoi(day);
-    int month_days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    if (month_num == 2 && day_num == 29 &&
-        !(year_num%400 == 0 || (year_num%4 == 0 && year_num%100 != 0))) {
+    int m = atoi(str);
+    for (int i = 0; i < 2; i++) {
+        if (!isdigit(*str++)) {
             return 0;
-    } else if (day_num < 1 || day_num > month_days[month_num-1]) {
-        return 0;
+        }
     }
 
-    return 1;
+    if ((*str++ != '-') || (m < 1) || (m > 12)) return 0;
+
+    int d = atoi(str);
+    for (int i = 0; i < 2; i++) {
+        if (!isdigit(*str++)) {
+            return 0;
+        }
+    }
+
+    return (*str == '\0') && (d >= 1) && (d <= days_of_month[m-1]);
 }
 
+// Format: HH:MM:SS
 int validate_time(char *str) {
     if (!str) return 0;
 
-    char time[TIME_LEN+1];
-    memcpy(time, str, TIME_LEN);
-    time[-1] = '\0';
-
-    if (strlen(time) != TIME_LEN) return 0;
-
-    if (time[2] != ':' || time[5] != ':') {
-        return 0;
+    int h = atoi(str);
+    for (int i = 0; i < 2; i++) {
+        if (!isdigit(*str++)) {
+            return 0;
+        }
     }
 
-    char *delim = ":\n";
+    if ((*str++ != ':') || (h < 0) || (h >= 24)) return 0;
 
-    char *hour = strtok(time, delim);
-    if (!isdigit(hour[0] || !isdigit(hour[1]))) return 0;
-    if (atoi(hour) < 0 || atoi(hour) > 23) return 0;
+    int m = atoi(str);
+    for (int i = 0; i < 2; i++) {
+        if (!isdigit(*str++)) {
+            return 0;
+        }
+    }
 
-    char *minutes = strtok(NULL, delim);
-    if (!isdigit(minutes[0]) || !isdigit(minutes[1])) return 0;
-    if (atoi(minutes) < 0 || atoi(minutes) > 59) return 0;
+    if ((*str++ != ':') || (m < 0) || (m >= 60)) return 0;
 
-    char *seconds = strtok(NULL, delim);
-    if (!isdigit(seconds[0]) || !isdigit(seconds[1])) return 0;
-    if (atoi(seconds) < 0 || atoi(seconds) > 59) return 0;
+    int s = atoi(str);
+    for (int i = 0; i < 2; i++) {
+        if (!isdigit(*str++)) {
+            return 0;
+        }
+    }
+
+    return (*str == '\0') && (s >= 0) && (s < 60);
+}
+
+int validate_elapsed_time(char *str) {
+    if (!str) return 0;
+
+    while (*str) {
+        if (!isdigit(*str++)) {
+            return 0;
+        }
+    }
 
     return 1;
 }
