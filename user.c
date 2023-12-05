@@ -598,7 +598,7 @@ void command_list() {
     if (prefixspn("RLS NOK\n", buffer) == received) {
         printf("No auction was started yet.\n");
     } else if (prefixspn("RLS OK ", buffer) == 7) {
-        printf("List of ongoing auctions:\n");
+        printf("List of ongoing active auctions:\n");
         char aid[AUCTION_ID_LEN+1];
         int status;
         for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
@@ -824,6 +824,7 @@ void command_show_record(char *aid) {
     }
 
     char buffer[BUFFER_LEN];
+    memset(buffer, 0, BUFFER_LEN);
     int printed = sprintf(buffer, "SRC %s\n", aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -844,6 +845,7 @@ void command_show_record(char *aid) {
     // terceira parte da resposta - 28 bytes (1+1+1+19+1+5)
     // total - 2210 bytes
     char big_buffer[BIG_BUFFER_LEN];
+    memset(big_buffer, 0, BIG_BUFFER_LEN);
     ssize_t received = recv(serverfd, big_buffer, BIG_BUFFER_LEN, 0);
     if (received == -1) {
         close(serverfd);
@@ -920,7 +922,13 @@ void command_show_record(char *aid) {
         printf("Auction %s opened by user %s with name %s, asset \"%s\" and a \
             start value of %s. It was opened on %s, %s to be active during %s seconds",
             aid, host_uid, auction_name, asset_fname, start_value, start_time, start_date, timeactive);
+        
+        // TODO: end this part
 
+    } else if (prefixspn("RRC ERR\n", buffer) == received) {
+        printf("Received error message.\n");
+    } else if (prefixspn("ERR\n", buffer) == received) {
+        printf("Received general error message.\n");
     }
 }
 
