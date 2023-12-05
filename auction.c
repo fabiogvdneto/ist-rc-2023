@@ -117,12 +117,13 @@ int validate_auction_value(char *str) {
 int validate_date(char *str) {
     if (!str) return 0;
 
-    if (strlen(str) != DATE_LEN) return 0;
-
-    if (str[4] != '-' || str[7] != '-') return 0;
-
-    char date[DATE_LEN];
+    char date[DATE_LEN+1];
     memcpy(date, str, DATE_LEN);
+    date[-1] = '\0';
+
+    if (strlen(date) != DATE_LEN) return 0;
+
+    if (date[4] != '-' || date[7] != '-') return 0;
 
     char *delim = "-\n";
 
@@ -157,14 +158,15 @@ int validate_date(char *str) {
 int validate_time(char *str) {
     if (!str) return 0;
 
-    if (strlen(str) != TIME_LEN) return 0;
+    char time[TIME_LEN+1];
+    memcpy(time, str, TIME_LEN);
+    time[-1] = '\0';
 
-    if (str[2] != ':' || str[5] != ':') {
+    if (strlen(time) != TIME_LEN) return 0;
+
+    if (time[2] != ':' || time[5] != ':') {
         return 0;
     }
-
-    char time[TIME_LEN];
-    memcpy(time, str, TIME_LEN);
 
     char *delim = ":\n";
 
