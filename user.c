@@ -895,9 +895,9 @@ void command_show_record(char *aid) {
             start_date, start_time, timeactive);
 
         int bid_count = 0;
-        while (ptr = strtok(NULL, delim)) {
+        while ((ptr = strtok(NULL, delim))) {
             if (!strcmp(ptr, "B")) {
-                if (++bid_count) {
+                if (++bid_count == 1) {
                     printf("List of bids placed on this auction:\n");
                 }
 
