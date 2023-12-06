@@ -32,18 +32,18 @@ Lembrar de usar:
 - Create some tests
 
 Roadmap (user.c):
-- login:        done!
-- logout:       done!
-- unregister:   done!
-- exit:         done!
-- open:         validate protocol message (spaces+\n).
-- close:        done!
-- myauctions:   validate protocol message (spaces+\n).
-- mybids:       validate protocol message (spaces+\n).
-- list:         validate protocol message (spaces+\n).
-- show_asset:   done!
-- bid:          done!
-- show_record:  done!
+- [UDP] login:        done!
+- [UDP] logout:       done!
+- [UDP] unregister:   done!
+- [UDP] exit:         done!
+- [TCP] open:         done!
+- [TCP] close:        done!
+- [UDP] myauctions:   validate protocol message (spaces+\n).
+- [UDP] mybids:       validate protocol message (spaces+\n).
+- [UDP] list:         done!
+- [TCP] show_asset:   done!
+- [TCP] bid:          done!
+- [UDP] show_record:  done!
 
 */
 
@@ -188,7 +188,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
-        print(INVALID_PROTOCOL_MSG);
+        printf(INVALID_PROTOCOL_MSG);
     }
 
     if (islogged) {
@@ -405,12 +405,16 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     close(serverfd);
 
     if (prefixspn("ROA OK ", buffer) == 7) {
-        char aid[AUCTION_ID_LEN+1];
+        if (!validate_protocol_syntax(buffer, received)) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
+        buffer[received-1] = '\0';
 
-        sscanf(buffer, "ROA OK %s\n", aid);
 
+        char *aid = buffer+7;
         if (!validate_auction_id(aid)) {
-            printf("Invalid AID was returned.\n");
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
@@ -627,20 +631,41 @@ void command_list() {
     if (prefixspn("RLS NOK\n", buffer) == received) {
         printf("No auction was started yet.\n");
     } else if (prefixspn("RLS OK ", buffer) == 7) {
-        printf("List of ongoing active auctions:\n");
-        char aid[AUCTION_ID_LEN+1];
-        int status;
-        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
-            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                panic(ERROR_SSCANF);
-            }
+        if (!validate_protocol_syntax(buffer, received)) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
 
-            if (!validate_auction_id(aid)) {
-                printf("The auction ID must be composed of 3 digits.\n");
+        char *delim = " \n";
+        char *aid[1024];
+        char *state[1024];
+        int length = 0;
+
+        strtok(buffer+4, delim);
+
+        while ((aid[length] = strtok(NULL, delim))) {
+            state[length] = strtok(NULL, delim);
+
+            if (!validate_auction_id(aid[length])) {
+                printf(INVALID_PROTOCOL_MSG);
                 return;
             }
 
-            printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
+            if (!validate_auction_state(state[length++])) {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
+            }
+        }
+
+        if (length == 0) {
+            printf("No action was created yet.");
+            return;
+        }
+
+        printf("List of ongoing active auctions:\n");
+
+        for (int i = 0; i < length; i++) {
+            printf("Auction %s: %s.\n", aid[i], ((*state[i] == '1') ? "active" : "inactive"));
         }
     } else if (prefixspn("RLS ERR\n", buffer) == received) {
         printf("Received error message.\n");
@@ -891,29 +916,12 @@ void command_show_record(char *aid) {
     if (prefixspn("RRC NOK\n", buffer) == received) {
         printf("Auction doesn't exist.\n");
     } else if (prefixspn("RRC OK ", buffer) == 7) {
-        char *ptr = buffer;
-
-        for (int i = 0; 1; i++, ptr++) {
-            if (i == received) {
-                printf(INVALID_PROTOCOL_MSG);
-                return;
-            }
-
-            if (*ptr == '\n') {
-                if ((i+1) != received) {
-                    printf(INVALID_PROTOCOL_MSG);
-                    return;
-                }
-                break;
-            }
-
-            if ((*ptr == ' ') && (*(ptr+1) == ' ')) {
-                printf(INVALID_PROTOCOL_MSG);
-                return;
-            }
+        if (!validate_protocol_syntax(buffer, received)) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
         }
 
-        *ptr = '\0';
+        buffer[received-1] = '\0';
         char *delim = " ";
         char *host_uid = strtok(buffer+7, delim);
         char *auction_name = strtok(NULL, delim);
@@ -943,8 +951,9 @@ void command_show_record(char *aid) {
         char *end_elapsed_time;
         int ended = 0;
         
-        while ((ptr = strtok(NULL, delim))) {
-            if (!strcmp(ptr, "B")) {
+        char *next;
+        while ((next = strtok(NULL, delim))) {
+            if (!strcmp(next, "B")) {
                 bidder_uid[bid_count] = strtok(NULL, delim);
                 bid_value[bid_count] = strtok(NULL, delim);
                 bid_date[bid_count] = strtok(NULL, delim);
@@ -961,7 +970,7 @@ void command_show_record(char *aid) {
                 }
 
                 bid_count++;
-            } else if (!strcmp(ptr, "E")) {
+            } else if (!strcmp(next, "E")) {
                 end_date = strtok(NULL, delim);
                 end_time = strtok(NULL, delim);
                 end_elapsed_time = strtok(NULL, delim);

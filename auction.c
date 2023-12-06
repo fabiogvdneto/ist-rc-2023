@@ -31,18 +31,6 @@ int validate_user_password(char *str) {
     return (*str == '\0');
 }
 
-int validate_auction_id(char *str) {
-    if (!str) return 0;
-
-    for (int i = 0; i < AUCTION_ID_LEN; i++) {
-        if (!isdigit(*str++)) {
-            return 0;
-        }
-    }
-
-    return (*str == '\0');
-}
-
 int validate_file_name(char *str) {
     if (!str) return 0;
 
@@ -80,6 +68,19 @@ int validate_file_size(char *str) {
     return 0;
 }
 
+int validate_auction_id(char *str) {
+    if (!str) return 0;
+
+    for (int i = 0; i < AUCTION_ID_LEN; i++) {
+        if (!isdigit(*str++)) {
+            printf("0\n");
+            return 0;
+        }
+    }
+
+    return (*str == '\0');
+}
+
 int validate_auction_name(char *str) {
     if (!str) return 0;
 
@@ -114,6 +115,10 @@ int validate_auction_value(char *str) {
     }
     
     return 0;
+}
+
+int validate_auction_state(char *str) {
+    return str && (strlen(str) == 1) && ((*str == '0') || (*str == '1'));
 }
 
 // Format: YYYY-MM-DD
@@ -190,4 +195,37 @@ int validate_elapsed_time(char *str) {
     }
 
     return 1;
+}
+
+/*
+ *  Returns true if the given memory region follows the syntax rules of the auction protocol.
+ *  A well-structured protocol message is composed by arguments, separated by exactly one space,
+ * and ends with an end-line character.
+ *  It is only recommended to use this function on protocol messages that do not include binary data
+ * (e.g. files) and that fit in a single buffer.
+ */
+int validate_protocol_syntax(char *str, int length) {
+    int i = 0;
+
+    while (i < 3) {
+        if(!isalpha(str[i++])) {
+            return 0;
+        }
+    }
+
+    do {
+        if ((i == length) || (str[i] == '\0')) {
+            return 0;
+        }
+
+        if (str[i] == '\n') {
+            return (i+1) == length;
+        }
+
+        if ((str[i] == ' ') && (str[i+1] == ' ')) {
+            return 0;
+        }
+    } while (i++);
+
+    return 0;
 }
