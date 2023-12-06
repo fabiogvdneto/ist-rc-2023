@@ -22,13 +22,28 @@
 /* Auction */
 #include "auction.h"
 
-/* TODOs
+/* TODO
 
+Lembrar de usar:
 - select()
 - Timers (setsockopt()).
 - Signals (SIGSEGV, SIGINT ctrl-c, SIGCHLD server-side, SIGPIPE).
 - Um processo para cada cliente.
 - Create some tests
+
+Roadmap (user.c):
+- login:        done!
+- logout:       done!
+- unregister:   done!
+- exit:         done!
+- open:         validate protocol message (spaces+\n).
+- close:        done!
+- myauctions:   validate protocol message (spaces+\n).
+- mybids:       validate protocol message (spaces+\n).
+- list:         validate protocol message (spaces+\n).
+- show_asset:   done!
+- bid:          done!
+- show_record:  done!
 
 */
 
@@ -172,6 +187,8 @@ void command_login(char *temp_uid, char *temp_pwd) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        print(INVALID_PROTOCOL_MSG);
     }
 
     if (islogged) {
@@ -225,6 +242,8 @@ void command_logout() {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -273,6 +292,8 @@ void command_unregister() {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -402,6 +423,8 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -461,6 +484,8 @@ void command_close(char *aid) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -516,6 +541,8 @@ void command_myauctions() {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -571,6 +598,8 @@ void command_mybids() {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -617,6 +646,8 @@ void command_list() {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
@@ -692,7 +723,7 @@ void command_show_asset(char *aid) {
             panic(ERROR_SPRINTF);
         }
 
-        if (mkdir("output", S_IRWXU) == -1 && errno != EEXIST) {
+        if ((mkdir("output", S_IRWXU) == -1) && (errno != EEXIST)) {
             close(serverfd);
             panic(ERROR_MKDIR);
         }
@@ -736,7 +767,15 @@ void command_show_asset(char *aid) {
             }
         }
 
-        // read '\n'?
+        received = read(serverfd, buffer, BUFFER_LEN);
+        if (received == -1) {
+            panic(ERROR_RECV_MSG);
+        }
+
+        if ((received != 0) || (*buffer != '\n')) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
         
         close(fd);
         close(serverfd);
@@ -745,6 +784,8 @@ void command_show_asset(char *aid) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 
     close(serverfd);
@@ -810,6 +851,8 @@ void command_bid(char *aid, char *value) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 
 }
@@ -954,6 +997,8 @@ void command_show_record(char *aid) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
+    } else {
+        printf(INVALID_PROTOCOL_MSG);
     }
 }
 
