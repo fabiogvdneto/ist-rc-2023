@@ -23,6 +23,10 @@
 /* Auction */
 #include "auction.h"
 
+/* Roadmap (server.c) 
+- fazer resposta ao open
+*/
+
 #define DEBUG 1
 
 #define PORT_FLAG "-p"
