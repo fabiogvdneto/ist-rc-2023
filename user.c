@@ -893,45 +893,48 @@ void command_show_record(char *aid) {
             host_uid, auction_name, asset_fname, start_value);
         printf("It was opened on %s, %s to be active during %s seconds.\n", 
             start_date, start_time, timeactive);
-        
-        ptr = strtok(NULL, delim);
-        if (ptr && !strcmp(ptr, "B")) {
-            printf("List of bids placed on this auction:\n");
-        }
-        // consideramos que o servidor só envia 50 ou de todas as que recebermos apenas mostramos 50?
-        while ((ptr && !strcmp(ptr, "B"))) {
-            char *bidder_uid = strtok(NULL, delim);
-            char *bid_value = strtok(NULL, delim);
-            char *bid_date = strtok(NULL, delim);
-            char *bid_time = strtok(NULL, delim);
-            char *bid_elapsed_time = strtok(NULL, delim);
 
-            if (!validate_user_id(bidder_uid) || !validate_auction_value(bid_value) ||
-             !validate_date(bid_date) || !validate_time(bid_time) ||
-             !validate_elapsed_time(bid_elapsed_time)) {
+        int bid_count = 0;
+        while (ptr = strtok(NULL, delim)) {
+            if (!strcmp(ptr, "B")) {
+                if (++bid_count) {
+                    printf("List of bids placed on this auction:\n");
+                }
+
+                char *bidder_uid = strtok(NULL, delim);
+                char *bid_value = strtok(NULL, delim);
+                char *bid_date = strtok(NULL, delim);
+                char *bid_time = strtok(NULL, delim);
+                char *bid_elapsed_time = strtok(NULL, delim);
+
+                if (!validate_user_id(bidder_uid) || !validate_auction_value(bid_value) ||
+                        !validate_date(bid_date) || !validate_time(bid_time) ||
+                        !validate_elapsed_time(bid_elapsed_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                // TODO: order bid by lowest value
+                printf("- Bid placed by user %s, with value %s, on %s, %s, with %s seconds elapsed.\n", 
+                    bidder_uid, bid_value, bid_date, bid_time, bid_elapsed_time);
+            } else if (!strcmp(ptr, "E")) {
+                char *end_date = strtok(NULL, delim);
+                char *end_time = strtok(NULL, delim);
+                char *end_elapsed_time = strtok(NULL, delim);
+
+                if (strtok(NULL, delim) || !validate_date(end_date) ||
+                        !validate_time(end_time) || !validate_elapsed_time(end_elapsed_time)) {
+                    printf(INVALID_PROTOCOL_MSG);
+                    return;
+                }
+
+                printf("Auction ended on %s, %s, with %s seconds elapsed.\n",
+                    end_date, end_time, end_elapsed_time);
+                break;
+            } else {
                 printf(INVALID_PROTOCOL_MSG);
                 return;
             }
-            
-            ptr = strtok(NULL, delim);
-
-            // TODO: order bid by lowest value
-            printf("- Bid placed by user %s, with value %s, on %s, %s, with %s seconds elapsed.\n", 
-                bidder_uid, bid_value, bid_date, bid_time, bid_elapsed_time);
-        } 
-        if (ptr && !strcmp(ptr, "E")) {
-            char *end_date = strtok(NULL, delim);
-            char *end_time = strtok(NULL, delim);
-            char *end_elapsed_time = strtok(NULL, delim);
-
-            if (strtok(NULL, delim) || !validate_date(end_date) ||
-             !validate_time(end_time) || !validate_elapsed_time(end_elapsed_time)) {
-                printf(INVALID_PROTOCOL_MSG);
-                return;
-            }
-
-            printf("Auction ended on %s, %s, with %s seconds elapsed.\n",
-                end_date, end_time, end_elapsed_time);
         }
     } else if (prefixspn("RRC ERR\n", buffer) == received) {
         printf("Received error message.\n");
