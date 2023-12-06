@@ -188,7 +188,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
     } else if (prefixspn("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
-        print(INVALID_PROTOCOL_MSG);
+        printf(INVALID_PROTOCOL_MSG);
     }
 
     if (islogged) {
