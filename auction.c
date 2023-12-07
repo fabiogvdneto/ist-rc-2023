@@ -73,7 +73,6 @@ int validate_auction_id(char *str) {
 
     for (int i = 0; i < AUCTION_ID_LEN; i++) {
         if (!isdigit(*str++)) {
-            printf("0\n");
             return 0;
         }
     }
@@ -205,27 +204,17 @@ int validate_elapsed_time(char *str) {
  * (e.g. files) and that fit in a single buffer.
  */
 int validate_protocol_syntax(char *str, int length) {
-    int i = 0;
+    if (str[--length] != '\n') return 0;
 
-    while (i < 3) {
-        if(!isalpha(str[i++])) {
+    while (--length >= 0) {
+        if ((str[length] == '\0') || (str[length] == '\n')) {
+            return 0;
+        }
+
+        if ((str[length] == ' ') && (str[length+1] == ' ')) {
             return 0;
         }
     }
 
-    do {
-        if ((i == length) || (str[i] == '\0')) {
-            return 0;
-        }
-
-        if (str[i] == '\n') {
-            return (i+1) == length;
-        }
-
-        if ((str[i] == ' ') && (str[i+1] == ' ')) {
-            return 0;
-        }
-    } while (i++);
-
-    return 0;
+    return 1;
 }

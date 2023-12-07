@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 199309L
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -16,10 +18,10 @@
 
 /* Files */
 #include <sys/mman.h>
-#include <fcntl.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
-/* Auction */
+/* Auction Protocol */
 #include "auction.h"
 
 /* TODO
@@ -300,7 +302,7 @@ void command_unregister() {
 /* exit */
 void command_exit() {
     if (islogged) {
-        fprintf(stderr, ERROR_EXIT_LOGGED_IN);
+        printf(ERROR_EXIT_LOGGED_IN);
         return;
     }
 
@@ -639,32 +641,34 @@ void command_list() {
         char *delim = " \n";
         char *aid[1024];
         char *state[1024];
-        int length = 0;
+        int count = 0;
 
         strtok(buffer+4, delim);
 
-        while ((aid[length] = strtok(NULL, delim))) {
-            state[length] = strtok(NULL, delim);
+        while ((aid[count] = strtok(NULL, delim))) {
+            state[count] = strtok(NULL, delim);
 
-            if (!validate_auction_id(aid[length])) {
+            if (!validate_auction_id(aid[count])) {
                 printf(INVALID_PROTOCOL_MSG);
                 return;
             }
 
-            if (!validate_auction_state(state[length++])) {
+            if (!validate_auction_state(state[count])) {
                 printf(INVALID_PROTOCOL_MSG);
                 return;
             }
+
+            count++;
         }
 
-        if (length == 0) {
+        if (count == 0) {
             printf("No action was created yet.");
             return;
         }
 
         printf("List of ongoing active auctions:\n");
 
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < count; i++) {
             printf("Auction %s: %s.\n", aid[i], ((*state[i] == '1') ? "active" : "inactive"));
         }
     } else if (prefixspn("RLS ERR\n", buffer) == received) {
