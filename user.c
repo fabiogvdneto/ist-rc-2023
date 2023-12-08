@@ -55,6 +55,8 @@ Command: ./user -n 193.136.138.142 -p 58011
 
 */
 
+#define ERROR_COMMAND_NOT_FOUND \
+    "Unknown command. Type 'help' for a list of commands available.\n"
 #define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
 #define ERROR_NOT_LOGGED_IN "You need to login first.\n"
 #define ERROR_EXIT_LOGGED_IN "You need to logout first.\n"
@@ -92,8 +94,9 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define DEFAULT_PORT 58011 // 58019
 #define DEFAULT_IP "193.136.138.142" // "127.0.0.1"
 
-#define BUFFER_LEN 128
-#define BIG_BUFFER_LEN 6144
+#define BUFSIZ_S 256
+#define BUFSIZ_M 2048
+#define BUFSIZ_L 6144
 #define PACKET_SIZE 2048
 
 struct sockaddr* server_addr;
@@ -152,7 +155,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
@@ -169,7 +172,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -206,7 +209,7 @@ void command_logout() {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
@@ -223,7 +226,7 @@ void command_logout() {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -256,7 +259,7 @@ void command_unregister() {
         return;
     }
     
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
@@ -273,7 +276,7 @@ void command_unregister() {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -336,7 +339,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
     if (sprintf(buffer, "assets/%s", fname) < 0) {
         panic(ERROR_SPRINTF);
     }
@@ -398,7 +401,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -407,7 +410,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     close(serverfd);
 
     if (prefixspn("ROA OK ", buffer) == 7) {
-        if (!validate_protocol_syntax(buffer, received)) {
+        if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
@@ -446,7 +449,7 @@ void command_close(char *aid) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
@@ -468,7 +471,7 @@ void command_close(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -502,7 +505,7 @@ void command_myauctions() {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "LMA %s\n", user_uid);
     if (printed < 0) {
@@ -519,7 +522,7 @@ void command_myauctions() {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -559,7 +562,7 @@ void command_mybids() {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
 
     int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
@@ -576,7 +579,7 @@ void command_mybids() {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -621,8 +624,8 @@ void command_list() {
         panic(ERROR_SEND_MSG);
     }
 
-    char buffer[BIG_BUFFER_LEN];
-    ssize_t received = recv(serverfd, buffer, BIG_BUFFER_LEN, 0);
+    char buffer[BUFSIZ_L];
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_L, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -633,7 +636,7 @@ void command_list() {
     if (prefixspn("RLS NOK\n", buffer) == received) {
         printf("No auction was started yet.\n");
     } else if (prefixspn("RLS OK ", buffer) == 7) {
-        if (!validate_protocol_syntax(buffer, received)) {
+        if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
@@ -687,7 +690,7 @@ void command_show_asset(char *aid) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -708,7 +711,7 @@ void command_show_asset(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -773,10 +776,10 @@ void command_show_asset(char *aid) {
             written += write(fd, fdata+written, to_write-written);
         }
 
-        char packet[BIG_BUFFER_LEN];
+        char packet[BUFSIZ_L];
 
         while (remaining -= written) {
-            to_write = (remaining > BIG_BUFFER_LEN) ? BIG_BUFFER_LEN : remaining;
+            to_write = (remaining > BUFSIZ_L) ? BUFSIZ_L : remaining;
             to_write = read(serverfd, packet, to_write);
             if (to_write == -1) {
                 close(serverfd);
@@ -796,7 +799,7 @@ void command_show_asset(char *aid) {
             }
         }
 
-        received = read(serverfd, buffer, BUFFER_LEN);
+        received = read(serverfd, buffer, BUFSIZ_S);
         if (received == -1) {
             panic(ERROR_RECV_MSG);
         }
@@ -837,7 +840,7 @@ void command_bid(char *aid, char *value) {
         return;
     }
 
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -858,7 +861,7 @@ void command_bid(char *aid, char *value) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFFER_LEN);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -893,7 +896,7 @@ void command_show_record(char *aid) {
         return;
     }
 
-    char buffer[BIG_BUFFER_LEN];
+    char buffer[BUFSIZ_L];
     int printed = sprintf(buffer, "SRC %s\n", aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -909,7 +912,7 @@ void command_show_record(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = recv(serverfd, buffer, BIG_BUFFER_LEN, 0);
+    ssize_t received = recv(serverfd, buffer, BUFSIZ_L, 0);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -920,7 +923,7 @@ void command_show_record(char *aid) {
     if (prefixspn("RRC NOK\n", buffer) == received) {
         printf("Auction doesn't exist.\n");
     } else if (prefixspn("RRC OK ", buffer) == 7) {
-        if (!validate_protocol_syntax(buffer, received)) {
+        if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
@@ -1015,10 +1018,27 @@ void command_show_record(char *aid) {
     }
 }
 
+/* help */
+void command_help() {
+    printf("Commands currently available:\n");
+    printf("• login <uid> <password> | Login to server.\n");
+    printf("• logout | Logout from server.\n");
+    printf("• unregister | Unregister account.\n");
+    printf("• exit | Exit from CLI.\n");
+    printf("• open <name> <filename> <start-value> <duration> | Open a new auction.\n");
+    printf("• close <aid> | Close ongoing auction.\n");
+    printf("• myauctions | List auctions created by you.\n");
+    printf("• mybids | List your bids.\n");
+    printf("• list | List all auctions ever created.\n");
+    printf("• show_asset <auction id> | Show auction asset.\n");
+    printf("• bid <auction id> <bid value> | Place a bid.\n");
+    printf("• show_record <auction id> | Show info about an auction.\n");
+}
+
 /* ---- Command Listener ---- */
 
 void command_listener() {
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
     char *label, *delim = " \n";
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
@@ -1059,8 +1079,10 @@ void command_listener() {
         } else if (!strcmp("show_record", label) || !strcmp("sr", label)) {
             char *aid = strtok(NULL, delim);
             command_show_record(aid);
+        } else if (!strcmp("help", label)) {
+            command_help();
         } else {
-            printf("Command not found.\n");
+            printf(ERROR_COMMAND_NOT_FOUND);
         }
     }
 

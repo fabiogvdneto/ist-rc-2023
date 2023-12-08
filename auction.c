@@ -203,7 +203,7 @@ int validate_elapsed_time(char *str) {
  *  It is only recommended to use this function on protocol messages that do not include binary data
  * (e.g. files) and that fit in a single buffer.
  */
-int validate_protocol_syntax(char *str, int length) {
+int validate_protocol_message(char *str, int length) {
     if (str[--length] != '\n') return 0;
 
     while (--length >= 0) {

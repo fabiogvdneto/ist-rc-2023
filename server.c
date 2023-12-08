@@ -73,7 +73,7 @@ void udp_send(int fd, char *msg) {
 
 void udp_recv(int fd, char *buffer) {
     socklen_t addrlen = sizeof(server_addr);
-    ssize_t res = recvfrom(fd, buffer, BUFFER_LEN, 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t res = recvfrom(fd, buffer, BUFSIZ_S, 0, (struct sockaddr*) &server_addr, &addrlen);
 
     if (res == -1) {
         printf("Error: could not receive message from server.\n");
@@ -127,7 +127,7 @@ int erase_dir(char *dirname) {
         r = 0;
         while (!r && (p = readdir(d))) {
             int r2 = -1;
-            char buffer[BIG_BUFFER_LEN];
+            char buffer[BUFSIZ_L];
 
             if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..")) {
                 continue;
@@ -374,7 +374,7 @@ void extract_label(char *command, char *label, int n) {
 }
 
 void client_listener() {
-    char buffer[BUFFER_LEN];
+    char buffer[BUFSIZ_S];
     char *label, *delim = " \n";
 
     int fd = udp_socket();

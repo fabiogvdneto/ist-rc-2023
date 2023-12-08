@@ -39,4 +39,6 @@ int validate_time(char *str);
 
 int validate_elapsed_time(char *str);
 
+int validate_protocol_message(char *str, int length);
+
 #endif
