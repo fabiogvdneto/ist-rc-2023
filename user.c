@@ -484,11 +484,11 @@ void command_close(char *aid) {
     if (prefixspn("RCL OK\n", buffer) == received) {
         printf("Auction was successfully closed.\n");
     } else if (prefixspn("RCL NLG\n", buffer) == received) {
-        printf("User not logged in.\n");
+        printf("You need to login first.\n");
     } else if (prefixspn("RCL EAU\n", buffer) == received) {
-        printf("The auction %s doesn't exist.\n", aid);
+        printf("Auction not found.\n");
     } else if (prefixspn("RCL EOW\n", buffer) == received) {
-        printf("The auction %s is not owned by the user %s.\n", aid, user_uid);
+        printf("You do not own that auction.\n");
     } else if (prefixspn("RCL END\n", buffer) == received) {
         printf("The auction %s has already ended.\n", aid);
     } else if (prefixspn("RCL ERR\n", buffer) == received) {
@@ -808,7 +808,7 @@ void command_show_asset(char *aid) {
             panic(ERROR_MKDIR);
         }
 
-        int fd = open(buffer, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
+        int fd = open(pathname, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
         if (fd == -1) {
             close(serverfd);
             panic(ERROR_OPEN);
@@ -859,7 +859,7 @@ void command_show_asset(char *aid) {
         
         close(fd);
         close(serverfd);
-        printf("Download complete: output/%s\n", pathname);
+        printf("Download complete: %s\n", pathname);
     } else if (prefixspn("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
