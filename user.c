@@ -34,12 +34,6 @@ Lembrar de usar:
 - Create some tests
 */
 
-/* tejo.tecnico.ulisboa.pt (193.136.138.142:58011)
-
-Command: ./user -n 193.136.138.142 -p 58011
-
-*/
-
 #define ERROR_COMMAND_NOT_FOUND \
     "Unknown command. Type 'help' for a list of commands available.\n"
 #define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
@@ -160,7 +154,6 @@ void command_login(char *temp_uid, char *temp_pwd) {
     }
 
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -214,7 +207,6 @@ void command_logout() {
     }
 
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -264,7 +256,6 @@ void command_unregister() {
     }
     
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
