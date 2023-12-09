@@ -134,7 +134,7 @@ ssize_t read_all(int fd, char *buffer, size_t nbytes) {
  * located at the start of the string.
  * Returns the number of bytes from prefix that matches the given string.
 */
-int prefixspn(char *prefix, char *str) {
+int startswith(char *prefix, char *str) {
     char *start = str;
     while (*prefix && (*prefix++ == *str++));
     return (str - start);
@@ -184,17 +184,17 @@ void command_login(char *temp_uid, char *temp_pwd) {
 
     close(serverfd);
 
-    if (prefixspn("RLI NOK\n", buffer) == received) {
+    if (startswith("RLI NOK\n", buffer) == received) {
         printf("Incorrect login attempt.\n");
-    } else if (prefixspn("RLI OK\n", buffer) == received) {
+    } else if (startswith("RLI OK\n", buffer) == received) {
         printf("Successful login.\n");
         islogged = 1;
-    } else if (prefixspn("RLI REG\n", buffer) == received) {
+    } else if (startswith("RLI REG\n", buffer) == received) {
         printf("New user registered.\n");
         islogged = 1;
-    } else if (prefixspn("RLI ERR\n", buffer) == received) {
+    } else if (startswith("RLI ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -238,18 +238,18 @@ void command_logout() {
 
     close(serverfd);
 
-    if (prefixspn("RLO OK\n", buffer) == received) {
+    if (startswith("RLO OK\n", buffer) == received) {
         printf("Successful logout.\n");
         memset(user_uid, 0, USER_ID_LEN);
         memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
-    } else if (prefixspn("RLO NOK\n", buffer) == received) {
+    } else if (startswith("RLO NOK\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (prefixspn("RLO UNR\n", buffer) == received) {
+    } else if (startswith("RLO UNR\n", buffer) == received) {
         printf("Unknown user.\n");
-    } else if (prefixspn("RLO ERR\n", buffer) == received) {
+    } else if (startswith("RLO ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -288,18 +288,18 @@ void command_unregister() {
     
     close(serverfd);
 
-    if (prefixspn("RUR OK\n", buffer) == received) {
+    if (startswith("RUR OK\n", buffer) == received) {
         printf("Successful unregister.\n");
         memset(user_uid, 0, USER_ID_LEN);
         memset(user_pwd, 0, USER_PWD_LEN);
         islogged = 0;
-    } else if (prefixspn("RUR NOK\n", buffer) == received) {
+    } else if (startswith("RUR NOK\n", buffer) == received) {
         printf("Unknown user.\n");
-    } else if (prefixspn("RUR UNR\n", buffer) == received) {
+    } else if (startswith("RUR UNR\n", buffer) == received) {
         printf("Incorrect unregister attempt.\n");
-    } else if (prefixspn("RUR ERR\n", buffer) == received) {
+    } else if (startswith("RUR ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -413,7 +413,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     close(serverfd);
 
-    if (prefixspn("ROA OK ", buffer) == 7) {
+    if (startswith("ROA OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -427,13 +427,13 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         }
 
         printf("New auction opened with ID: %s.\n", aid);
-    } else if (prefixspn("ROA NOK\n", buffer) == received) {
+    } else if (startswith("ROA NOK\n", buffer) == received) {
         printf("Auction could not be started.\n");
-    } else if (prefixspn("ROA NLG\n", buffer) == received) {
+    } else if (startswith("ROA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (prefixspn("ROA ERR\n", buffer) == received) {
+    } else if (startswith("ROA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -481,19 +481,19 @@ void command_close(char *aid) {
 
     close(serverfd);
 
-    if (prefixspn("RCL OK\n", buffer) == received) {
+    if (startswith("RCL OK\n", buffer) == received) {
         printf("Auction was successfully closed.\n");
-    } else if (prefixspn("RCL NLG\n", buffer) == received) {
+    } else if (startswith("RCL NLG\n", buffer) == received) {
         printf("You need to login first.\n");
-    } else if (prefixspn("RCL EAU\n", buffer) == received) {
+    } else if (startswith("RCL EAU\n", buffer) == received) {
         printf("Auction not found.\n");
-    } else if (prefixspn("RCL EOW\n", buffer) == received) {
+    } else if (startswith("RCL EOW\n", buffer) == received) {
         printf("You do not own that auction.\n");
-    } else if (prefixspn("RCL END\n", buffer) == received) {
+    } else if (startswith("RCL END\n", buffer) == received) {
         printf("The auction %s has already ended.\n", aid);
-    } else if (prefixspn("RCL ERR\n", buffer) == received) {
+    } else if (startswith("RCL ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -531,11 +531,11 @@ void command_myauctions() {
 
     close(serverfd);
 
-    if (prefixspn("RMA NOK\n", buffer) == received) {
+    if (startswith("RMA NOK\n", buffer) == received) {
         printf("The user %s has no ongoing auctions.\n", user_uid);
-    } else if (prefixspn("RMA NLG\n", buffer) == received) {
+    } else if (startswith("RMA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (prefixspn("RMA OK ", buffer) == 7) {
+    } else if (startswith("RMA OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -569,9 +569,9 @@ void command_myauctions() {
         for (int i = 0; i < nauctions; i++) {
             printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
-    } else if (prefixspn("RMA ERR\n", buffer) == received) {
+    } else if (startswith("RMA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -609,11 +609,11 @@ void command_mybids() {
 
     close(serverfd);
 
-    if (prefixspn("RMB NOK\n", buffer) == received) {
+    if (startswith("RMB NOK\n", buffer) == received) {
         printf("The user %s has no ongoing bids.\n", user_uid);
-    } else if (prefixspn("RMB NLG\n", buffer) == received) {
+    } else if (startswith("RMB NLG\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (prefixspn("RMB OK ", buffer) == 7) {
+    } else if (startswith("RMB OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -647,9 +647,9 @@ void command_mybids() {
         for (int i = 0; i < nbids; i++) {
             printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
-    } else if (prefixspn("RMB ERR\n", buffer) == received) {
+    } else if (startswith("RMB ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -677,9 +677,9 @@ void command_list() {
 
     close(serverfd);
 
-    if (prefixspn("RLS NOK\n", buffer) == received) {
+    if (startswith("RLS NOK\n", buffer) == received) {
         printf("No auction was started yet.\n");
-    } else if (prefixspn("RLS OK ", buffer) == 7) {
+    } else if (startswith("RLS OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -719,9 +719,9 @@ void command_list() {
         for (int i = 0; i < count; i++) {
             printf("Auction %s: %s.\n", aid[i], ((*state[i] == '1') ? "active" : "inactive"));
         }
-    } else if (prefixspn("RLS ERR\n", buffer) == received) {
+    } else if (startswith("RLS ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -762,9 +762,9 @@ void command_show_asset(char *aid) {
         panic(ERROR_RECV_MSG);
     }
 
-    if (prefixspn("RSA NOK\n", buffer) == received) {
+    if (startswith("RSA NOK\n", buffer) == received) {
         printf("No file to be sent or error ocurred.\n");
-    } else if (prefixspn("RSA OK ", buffer) == 7) {
+    } else if (startswith("RSA OK ", buffer) == 7) {
         // Message: RSA OK <fname> <fsize> <fdata>
         char *fname = buffer + 7;
         
@@ -860,9 +860,9 @@ void command_show_asset(char *aid) {
         close(fd);
         close(serverfd);
         printf("Download complete: %s\n", pathname);
-    } else if (prefixspn("RSA ERR\n", buffer) == received) {
+    } else if (startswith("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -917,19 +917,19 @@ void command_bid(char *aid, char *value) {
 
     close(serverfd);
 
-    if (prefixspn("RBD NOK\n", buffer) == received) {
+    if (startswith("RBD NOK\n", buffer) == received) {
         printf("Auction not active.\n");
-    } else if (prefixspn("RBD NGL\n", buffer) == received) {
+    } else if (startswith("RBD NGL\n", buffer) == received) {
         printf("User not logged in.\n");
-    } else if (prefixspn("RBD ACC\n", buffer) == received) {
+    } else if (startswith("RBD ACC\n", buffer) == received) {
         printf("Bid accepted.\n");
-    } else if (prefixspn("RBD REF\n", buffer) == received) {
+    } else if (startswith("RBD REF\n", buffer) == received) {
         printf("Bid refused: a larger a bid has already been placed.\n");
-    } else if (prefixspn("RBD ILG\n", buffer) == received) {
+    } else if (startswith("RBD ILG\n", buffer) == received) {
         printf("That auction is hosted by you.\n");
-    } else if (prefixspn("RBD ERR\n", buffer) == received) {
+    } else if (startswith("RBD ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
@@ -968,9 +968,9 @@ void command_show_record(char *aid) {
 
     close(serverfd);
 
-    if (prefixspn("RRC NOK\n", buffer) == received) {
+    if (startswith("RRC NOK\n", buffer) == received) {
         printf("Auction doesn't exist.\n");
-    } else if (prefixspn("RRC OK ", buffer) == 7) {
+    } else if (startswith("RRC OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -1057,9 +1057,9 @@ void command_show_record(char *aid) {
         if (ended) {
             printf("Auction ended on %s, %s, with %s seconds elapsed.\n", end_date, end_time, end_elapsed_time);
         }
-    } else if (prefixspn("RRC ERR\n", buffer) == received) {
+    } else if (startswith("RRC ERR\n", buffer) == received) {
         printf("Received error message.\n");
-    } else if (prefixspn("ERR\n", buffer) == received) {
+    } else if (startswith("ERR\n", buffer) == received) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
