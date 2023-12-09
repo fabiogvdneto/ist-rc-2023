@@ -32,21 +32,6 @@ Lembrar de usar:
 - Signals (SIGSEGV, SIGINT ctrl-c, SIGCHLD server-side, SIGPIPE).
 - Um processo para cada cliente.
 - Create some tests
-
-Roadmap (user.c):
-- [UDP] login:        done!
-- [UDP] logout:       done!
-- [UDP] unregister:   done!
-- [UDP] exit:         done!
-- [TCP] open:         done!
-- [TCP] close:        done!
-- [UDP] myauctions:   validate protocol message (spaces+\n).
-- [UDP] mybids:       validate protocol message (spaces+\n).
-- [UDP] list:         done!
-- [TCP] show_asset:   done!
-- [TCP] bid:          done!
-- [UDP] show_record:  done!
-
 */
 
 /* tejo.tecnico.ulisboa.pt (193.136.138.142:58011)
@@ -97,7 +82,6 @@ Command: ./user -n 193.136.138.142 -p 58011
 #define BUFSIZ_S 256
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
-#define PACKET_SIZE 2048
 
 struct sockaddr* server_addr;
 
@@ -121,6 +105,26 @@ int udp_socket() {
 
 int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
+}
+
+/* ---- Read & Write ---- */
+
+ssize_t write_all(int fd, char *buffer, size_t nbytes) {
+    ssize_t readd = 0;
+    ssize_t res;
+    while ((res = write(fd, buffer+readd, nbytes-readd)) > 0) {
+        readd += res;
+    }
+    return (res == -1) ? res : readd;
+}
+
+ssize_t read_all(int fd, char *buffer, size_t nbytes) {
+    ssize_t written = 0;
+    ssize_t res;
+    while ((res = read(fd, buffer+written, nbytes-written)) > 0) {
+        written += res;
+    }
+    return (res == -1) ? res : written;
 }
 
 /* ---- Validators ---- */
@@ -381,12 +385,12 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         exit(EXIT_FAILURE);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    if (write(serverfd, fdata, fsize) == -1) {
+    if (write_all(serverfd, fdata, fsize) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
@@ -401,7 +405,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -414,16 +418,15 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
+
         buffer[received-1] = '\0';
-
-
         char *aid = buffer+7;
         if (!validate_auction_id(aid)) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
 
-        printf("New auction opened: %s.\n", aid);
+        printf("New auction opened with ID: %s.\n", aid);
     } else if (prefixspn("ROA NOK\n", buffer) == received) {
         printf("Auction could not be started.\n");
     } else if (prefixspn("ROA NLG\n", buffer) == received) {
@@ -450,7 +453,6 @@ void command_close(char *aid) {
     }
 
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -466,12 +468,12 @@ void command_close(char *aid) {
         panic(ERROR_CONNECT);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -506,7 +508,6 @@ void command_myauctions() {
     }
 
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "LMA %s\n", user_uid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -535,16 +536,38 @@ void command_myauctions() {
     } else if (prefixspn("RMA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
     } else if (prefixspn("RMA OK ", buffer) == 7) {
-        printf("List of auctions owned by user %s:\n", user_uid);
+        if (!validate_protocol_message(buffer, received)) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
 
-        char aid[AUCTION_ID_LEN+1];
-        int status;
-        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
-            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                panic(ERROR_SSCANF);
+        buffer[received-1] = '\0';
+        char *delim = " ";
+        char *aid[BUFSIZ_S];
+        char *state[BUFSIZ_S];
+        int nauctions = 0;
+
+        strtok(buffer+4, delim);
+        while ((aid[nauctions] = strtok(NULL, delim))) {
+            state[nauctions] = strtok(NULL, delim);
+
+            if (!validate_auction_id(aid[nauctions]) || !validate_auction_state(state[nauctions])) {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
             }
 
-            printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
+            nauctions++;
+        }
+
+        if (!nauctions) {
+            printf("You have not started any auction yet.\n");
+            return;
+        }
+
+        printf("%-10s\t%-10s\n", "Auction ID", "State");
+
+        for (int i = 0; i < nauctions; i++) {
+            printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (prefixspn("RMA ERR\n", buffer) == received) {
         printf("Received error message.\n");
@@ -563,7 +586,6 @@ void command_mybids() {
     }
 
     char buffer[BUFSIZ_S];
-
     int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -592,16 +614,38 @@ void command_mybids() {
     } else if (prefixspn("RMB NLG\n", buffer) == received) {
         printf("User not logged in.\n");
     } else if (prefixspn("RMB OK ", buffer) == 7) {
-        printf("List of auctions for which user %s has placed bids:\n", user_uid);
+        if (!validate_protocol_message(buffer, received)) {
+            printf(INVALID_PROTOCOL_MSG);
+            return;
+        }
 
-        char aid[AUCTION_ID_LEN+1];
-        int status;
-        for (char *ptr = buffer + 6; *ptr != '\n'; ptr += 6) {
-            if (sscanf(ptr, " %s %d", aid, &status) < 0) {
-                panic(ERROR_SSCANF);
+        buffer[received-1] = '\0';
+        char *delim = " ";
+        char *aid[BUFSIZ_S];
+        char *state[BUFSIZ_S];
+        int nbids = 0;
+
+        strtok(buffer+4, delim);
+        while ((aid[nbids] = strtok(NULL, delim))) {
+            state[nbids] = strtok(NULL, delim);
+
+            if (!validate_auction_id(aid[nbids]) || !validate_auction_state(state[nbids])) {
+                printf(INVALID_PROTOCOL_MSG);
+                return;
             }
 
-            printf("Auction %s: %s.\n", aid, (status ? "active" : "inactive"));
+            nbids++;
+        }
+
+        if (!nbids) {
+            printf("You have not placed any bid yet.\n");
+            return;
+        }
+
+        printf("%-10s\t%-10s\n", "Auction ID", "State");
+
+        for (int i = 0; i < nbids; i++) {
+            printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (prefixspn("RMB ERR\n", buffer) == received) {
         printf("Received error message.\n");
@@ -641,6 +685,7 @@ void command_list() {
             return;
         }
 
+        buffer[received-1] = '\0';
         char *delim = " \n";
         char *aid[1024];
         char *state[1024];
@@ -683,14 +728,14 @@ void command_list() {
     }
 }
 
-/* show_asset <aid> OR sa <aid>*/
+/* show_asset <aid> OR sa <aid> */
 void command_show_asset(char *aid) {
     if (!validate_auction_id(aid)) {
         printf(INVALID_AUCTION_ID);
         return;
     }
 
-    char buffer[BUFSIZ_S];
+    char buffer[BUFSIZ_L];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
         panic(ERROR_SPRINTF);
@@ -711,7 +756,7 @@ void command_show_asset(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all(serverfd, buffer, BUFSIZ_L);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -720,6 +765,7 @@ void command_show_asset(char *aid) {
     if (prefixspn("RSA NOK\n", buffer) == received) {
         printf("No file to be sent or error ocurred.\n");
     } else if (prefixspn("RSA OK ", buffer) == 7) {
+        // Message: RSA OK <fname> <fsize> <fdata>
         char *fname = buffer + 7;
         
         char *fsize = strchr(fname, ' ');
@@ -740,6 +786,7 @@ void command_show_asset(char *aid) {
 
         if (!validate_file_name(fname)) {
             close(serverfd);
+            printf("%s\n", fname);
             printf("Received invalid asset name from auction server.\n");
             return;
         }
@@ -750,7 +797,8 @@ void command_show_asset(char *aid) {
             return;
         }
 
-        if (sprintf(buffer, "output/%s", fname) < 0) {
+        char pathname[BUFSIZ_S];
+        if (sprintf(pathname, "output/%s", fname) < 0) {
             close(serverfd);
             panic(ERROR_SPRINTF);
         }
@@ -768,19 +816,19 @@ void command_show_asset(char *aid) {
 
         ssize_t remaining = atol(fsize);
         ssize_t to_write = (buffer + received) - fdata;
-        ssize_t written = 0;
 
         to_write = (remaining > to_write) ? to_write : remaining;
 
-        while (to_write > written) {
-            written += write(fd, fdata+written, to_write-written);
+        ssize_t written = write_all(fd, fdata, to_write);
+        if (written == -1) {
+            close(serverfd);
+            close(fd);
+            panic(ERROR_SEND_MSG);
         }
-
-        char packet[BUFSIZ_L];
 
         while (remaining -= written) {
             to_write = (remaining > BUFSIZ_L) ? BUFSIZ_L : remaining;
-            to_write = read(serverfd, packet, to_write);
+            to_write = read(serverfd, buffer, to_write);
             if (to_write == -1) {
                 close(serverfd);
                 close(fd);
@@ -793,25 +841,25 @@ void command_show_asset(char *aid) {
                 panic(INVALID_PROTOCOL_MSG);
             }
 
-            written = 0;
-            while (to_write > written) {
-                written += write(fd, packet+written, to_write-written);
+            if ((written = write_all(fd, buffer, to_write)) == -1) {
+                close(serverfd);
+                close(fd);
+                panic(ERROR_SEND_MSG);
             }
         }
 
-        received = read(serverfd, buffer, BUFSIZ_S);
-        if (received == -1) {
+        if ((received = read_all(serverfd, buffer, BUFSIZ_S)) == -1) {
             panic(ERROR_RECV_MSG);
         }
 
-        if ((received != 0) || (*buffer != '\n')) {
+        if ((received != 1) || (*buffer != '\n')) {
             printf(INVALID_PROTOCOL_MSG);
             return;
         }
         
         close(fd);
         close(serverfd);
-        printf("Download complete: %s\n", buffer);
+        printf("Download complete: output/%s\n", pathname);
     } else if (prefixspn("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (prefixspn("ERR\n", buffer) == received) {
@@ -856,12 +904,12 @@ void command_bid(char *aid, char *value) {
         panic(ERROR_CONNECT);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
-
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    
+    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -1020,19 +1068,19 @@ void command_show_record(char *aid) {
 
 /* help */
 void command_help() {
-    printf("Commands currently available:\n");
+    printf("Commands available:\n");
     printf("• login <uid> <password> | Login to server.\n");
     printf("• logout | Logout from server.\n");
     printf("• unregister | Unregister account.\n");
     printf("• exit | Exit from CLI.\n");
     printf("• open <name> <filename> <start-value> <duration> | Open a new auction.\n");
-    printf("• close <aid> | Close ongoing auction.\n");
+    printf("• close <auction-id> | Close ongoing auction.\n");
     printf("• myauctions | List auctions created by you.\n");
     printf("• mybids | List your bids.\n");
     printf("• list | List all auctions ever created.\n");
-    printf("• show_asset <auction id> | Show auction asset.\n");
-    printf("• bid <auction id> <bid value> | Place a bid.\n");
-    printf("• show_record <auction id> | Show info about an auction.\n");
+    printf("• show_asset <auction-id> | Show auction asset.\n");
+    printf("• bid <auction id> <bid-value> | Place a bid.\n");
+    printf("• show_record <auction-id> | Show info about an auction.\n");
 }
 
 /* ---- Command Listener ---- */
@@ -1041,6 +1089,7 @@ void command_listener() {
     char buffer[BUFSIZ_S];
     char *label, *delim = " \n";
 
+    printf("> ");
     while (fgets(buffer, sizeof(buffer), stdin)) {
         if (!(label = strtok(buffer, delim))) continue;
 
@@ -1084,6 +1133,8 @@ void command_listener() {
         } else {
             printf(ERROR_COMMAND_NOT_FOUND);
         }
+
+        printf("> ");
     }
 
     fprintf(stderr, ERROR_FGETS);
