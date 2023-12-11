@@ -112,11 +112,12 @@ ssize_t write_all(int fd, char *buffer, size_t nbytes) {
     return (res == -1) ? res : readd;
 }
 
-ssize_t read_all(int fd, char *buffer, size_t nbytes) {
+ssize_t read_all(int fd, char *buffer, ssize_t nbytes) {
     ssize_t written = 0;
     ssize_t res;
     while ((res = read(fd, buffer+written, nbytes-written)) > 0) {
         written += res;
+        if (res < nbytes) break;
     }
     return (res == -1) ? res : written;
 }
