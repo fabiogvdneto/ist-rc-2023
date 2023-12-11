@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/time.h>
+#include <time.h>
 
 /* Networking */
 #include <netdb.h>
@@ -35,33 +37,56 @@
 #define DEFAULT_PORT 58019
 #define DEFAULT_IP "127.0.0.1"
 
-#define BUFFER_LEN 128
-#define BIG_BUFFER_LEN 6144
+#define BUFSIZ_S 256
+#define BUFSIZ_M 2048
+#define BUFSIZ_L 6144
 
 #define NON_EXIST 2
 #define SUCCESS 1
 #define ERROR 0
 
-struct sockaddr_in server_addr;
+struct sockaddr* server_addr;
+
+socklen_t server_addrlen;
 
 int verbose = 0;
 
-/* ---- UDP Protocol ---- */
+/* ---- Next Auction ID */
+int aid = 1;
+
+/* ---- Sockets ---- */
 
 int udp_socket() {
-    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    return socket(AF_INET, SOCK_DGRAM, 0);
+}
 
-    if (fd == -1) {
-        printf("Error: could not open socket.\n");
-        exit(EXIT_FAILURE);
+int tcp_socket() {
+    return socket(AF_INET, SOCK_STREAM, 0);
+}
+
+/* ---- Read & Write ---- */
+
+ssize_t write_all(int fd, char *buffer, size_t nbytes) {
+    ssize_t written = 0;
+    ssize_t res;
+    while ((res = write(fd, buffer+written, nbytes-written)) > 0) {
+        written += res;
     }
+    return (res == -1) ? res : written;
+}
 
-    return fd;
+ssize_t read_all(int fd, char *buffer, size_t nbytes) {
+    ssize_t readd = 0;
+    ssize_t res;
+    while ((res = read(fd, buffer+readd, nbytes-readd)) > 0) {
+        readd += res;
+    }
+    return (res == -1) ? res : readd;
 }
 
 void udp_send(int fd, char *msg) {
     size_t n = strlen(msg);
-    ssize_t res = sendto(fd, msg, n, 0, (struct sockaddr*) &server_addr, sizeof(server_addr));
+    ssize_t res = sendto(fd, msg, n, 0, server_addr, server_addrlen);
 
     if (res == -1) {
         printf("Error: could not send message to server.\n");
@@ -72,8 +97,7 @@ void udp_send(int fd, char *msg) {
 }
 
 void udp_recv(int fd, char *buffer) {
-    socklen_t addrlen = sizeof(server_addr);
-    ssize_t res = recvfrom(fd, buffer, BUFSIZ_S, 0, (struct sockaddr*) &server_addr, &addrlen);
+    ssize_t res = recvfrom(fd, buffer, BUFSIZ_S, 0, server_addr, &server_addrlen);
 
     if (res == -1) {
         printf("Error: could not receive message from server.\n");
@@ -81,12 +105,6 @@ void udp_recv(int fd, char *buffer) {
     }
 
     if (DEBUG) printf("[UDP] Received %ld bytes: %s", res, buffer);
-}
-
-void udp_bind(int fd) {
-    if (bind(fd, (struct sockaddr*) &server_addr, sizeof(server_addr))) {
-        exit(EXIT_FAILURE);
-    }
 }
 
 /* ---- AS File Management ---- */
@@ -208,6 +226,10 @@ int erase_login(char *uid) {
 // 1 -> existe ficheiro de login
 // 0 -> erro
 int find_login(char *uid) {
+    if (find_user_dir(uid) == NON_EXIST) {
+        return NON_EXIST;
+    }
+
     char login_name[40];
     FILE *fp;
 
@@ -261,11 +283,95 @@ int erase_password(char *uid) {
     return SUCCESS;
 }
 
+// 2 -> não existe ficheiro de password
+// 1 -> existe ficheiro de password
+// 0 -> erro
+int find_password(char *uid) {
+    if (find_user_dir(uid) == NON_EXIST) {
+        return NON_EXIST;
+    }
+
+    char password_name[40];
+    FILE *fp;
+
+    sprintf(password_name, "USERS/%s/%s_pass.txt", uid, uid);
+    if ((fp = fopen(password_name, "r")) == NULL) {
+        if (errno == ENOENT) {
+            return NON_EXIST;
+        } else {
+            return ERROR;
+        }
+    }
+    fclose(fp);
+    return SUCCESS;
+}
+
+int create_auction_dir() {
+    char aid_dirname[20];
+    char asset_dirname[30];
+    char bids_dirname[30];
+
+    sprintf(aid_dirname, "AUCTIONS/%03d", aid);
+    if ((mkdir(aid_dirname, 0700)) == -1) {
+        return ERROR;
+    }
+
+    sprintf(asset_dirname, "AUCTIONS/%03d/ASSET", aid);
+    if ((mkdir(asset_dirname, 0700)) == -1) {
+        rmdir(aid_dirname);
+        return ERROR;
+    }
+
+    sprintf(bids_dirname, "AUCTIONS/%03d/BIDS", aid);
+    if ((mkdir(bids_dirname, 0700)) == -1) {
+        rmdir(aid_dirname);
+        rmdir(asset_dirname);
+        return ERROR;
+    }
+
+    return SUCCESS;
+}
+
+int create_start_file(char *uid, char *name, char *fname, char *start_value, char *timeactive) {
+    char start_name[40];
+    char buffer[BUFSIZ_S];
+    FILE *fp;
+
+    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", aid, aid);
+    
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    char start_datetime[DATE_LEN + TIME_LEN + 2];
+    sprintf(start_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
+        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+    
+    sprintf(buffer, "%s %s %s %s %s %s %ld", uid, name, fname, start_value,
+        timeactive, start_datetime, rawtime);
+
+
+    if ((fp = fopen(start_name, "w")) == NULL) {
+        return ERROR;
+    }
+    fprintf(fp, "%s", buffer);
+    fclose(fp);
+    return SUCCESS;
+}
+
+// TODO: create_asset_file
+
+// TODO: create_end_file para quando fizer close
+
 /* ---- Responses ---- */
 
 void response_login(int fd, char *uid, char* pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        udp_send(fd, "RLI ERR\n");
+        if (sendto(fd, "RLI ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
         return;
     }
 
@@ -287,16 +393,39 @@ void response_login(int fd, char *uid, char* pwd) {
             printf("ERROR\n");
             return;
         }
-        udp_send(fd, "RLI REG\n");
+        if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
     } else if (ret == SUCCESS) {
-        // TODO: check if user is already logged in
-        char ext_pwd[USER_PWD_LEN];
-        extract_password(uid, ext_pwd);
-        if (!strcmp(pwd, ext_pwd)) {
+        int ret2 = find_password(uid);
+        if (ret2 == NON_EXIST) {
+            create_password(uid, pwd);
             create_login(uid);
-            udp_send(fd, "RLI OK\n");
-        } else {
-            udp_send(fd, "RLI NOK\n");
+            if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+            return;
+        } else if (ret2 == ERROR) {
+            printf("ERROR\n");
+            return;
+        } else if (ret2 == SUCCESS) {
+            // TODO: verificar se o user já está logged in?
+            char ext_pwd[USER_PWD_LEN];
+            extract_password(uid, ext_pwd);
+            if (!strcmp(pwd, ext_pwd)) {
+                create_login(uid);
+                if (sendto(fd, "RLI OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
+            } else {
+                if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
+            }
         }
     } else if (ret == ERROR) {
         printf("ERROR\n");
@@ -305,12 +434,18 @@ void response_login(int fd, char *uid, char* pwd) {
 
 void response_logout(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        udp_send(fd, "RLO ERR\n");
+        if (sendto(fd, "RLI ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
     }
 
     int ret = find_user_dir(uid);
     if (ret == NON_EXIST) {
-        udp_send(fd, "RLO UNR\n");
+        if (sendto(fd, "RLO UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
     } else if (ret == SUCCESS) {
         // é necessário verificar se as passwords são iguais?
         char ext_pwd[USER_PWD_LEN];
@@ -319,14 +454,23 @@ void response_logout(int fd, char *uid, char *pwd) {
             int ret2 = find_login(uid);
             if (ret2 == SUCCESS) {
                 erase_login(uid);
-                udp_send(fd, "RLO OK\n");
+                if (sendto(fd, "RLO OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
             } else if (ret2 == NON_EXIST) {
-                udp_send(fd, "RLO NOK\n");
+                if (sendto(fd, "RLO NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
             } else if (ret2 == ERROR) {
                 printf("ERROR\n");
             }
         } else {
-            udp_send(fd, "RLO ERR\n");
+            if (sendto(fd, "RLO ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR\n");
+                return;
+            }
         }
     } else if (ret == ERROR) {
         printf("ERROR\n");
@@ -335,32 +479,111 @@ void response_logout(int fd, char *uid, char *pwd) {
 
 void response_unregister(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        udp_send(fd, "RUR ERR\n");
+        if (sendto(fd, "RUR ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
     }
 
     int ret = find_user_dir(uid);
     if (ret == NON_EXIST) {
-        udp_send(fd, "RUR UNR\n");
+        if (sendto(fd, "RUR UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
     } else if (ret == SUCCESS) {
         // é necessário verificar se as passwords são iguais?
+        // talvez verificar primeiro se está logged in e só depois se as passes são iguais
         char ext_pwd[USER_PWD_LEN];
         extract_password(uid, ext_pwd);
         if (!strcmp(pwd, ext_pwd)) {
             int ret2 = find_login(uid);
             if (ret2 == SUCCESS) {
-                erase_user_dir(uid);
-                udp_send(fd, "RUR OK\n");
+                erase_password(uid);
+                erase_login(uid);
+                if (sendto(fd, "RUR OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
             } else if (ret2 == NON_EXIST) {
-                udp_send(fd, "RUR NOK\n");
+                if (sendto(fd, "RUR NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
             } else if (ret2 == ERROR) {
                 printf("ERROR\n");
             }
         } else {
-            udp_send(fd, "RUR ERR\n");
+            if (sendto(fd, "RUR ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR\n");
+                return;
+            }
         }
     } else if (ret == ERROR) {
         printf("ERROR\n");
     }
+}
+
+void response_open(int fd, char *msg) {
+    // Message: OPA <uid> <password> <name> <start_value> <timeactive> <fname> <fzise> <fdata>
+    char *uid = msg + 4;
+
+    char *pwd = strchr(uid, ' ');
+    *pwd++ = '\0';
+
+    char *name = strchr(pwd, ' ');
+    *name++ = '\0';
+
+    char *start_value = strchr(name, ' ');
+    *start_value++ = '\0';
+
+    char *timeactive = strchr(start_value, ' ');
+    *timeactive++ = '\0';
+
+    char *fname = strchr(timeactive, ' ');
+    *fname++ = '\0';
+
+    char *fsize = strchr(fname, ' ');
+    *fsize++ = '\0';
+
+    char *fdata = strchr(fsize, ' ');
+    *fdata++ = '\0';
+
+    if (!validate_user_id(uid) || !validate_user_password(pwd) ||
+     !validate_auction_name(name) || !validate_auction_value(start_value) ||
+     !validate_auction_duration(timeactive) || !validate_file_name(fname) ||
+     !validate_file_size(fsize)) {
+        if (write_all(fd, "ROA ERR\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_login(uid);
+    if (ret == NON_EXIST) {
+        if (write_all(fd, "ROA NLG\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == ERROR) {
+        printf("ERROR\n");
+    } else if (ret == SUCCESS) {
+        create_auction_dir();
+        create_start_file(uid, name, fname, start_value, timeactive);
+        // TODO: call create_asset_file());
+        char buffer[BUFSIZ_S];
+        int printed;
+        if ((printed = sprintf(buffer, "ROA OK %03d\n", aid)) == -1) {
+            printf("ERROR in sprintf\n");
+            return;
+        }
+        if (write_all(fd, buffer, printed) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+        aid++;
+    }
+    // quando é que retornaria ROA NOK?
 }
 
 /* ---- Client Listener ---- */
@@ -373,60 +596,130 @@ void extract_label(char *command, char *label, int n) {
     *label = '\0';
 }
 
-void client_listener() {
-    char buffer[BUFSIZ_S];
-    char *label, *delim = " \n";
+void tcp_command_choser(int fd) {
+    char *label;
+    char buffer[BUFSIZ_L];
+    ssize_t received = read_all(fd, buffer, BUFSIZ_L);
+    if (received == -1) {
+        printf("ERROR: %s.\n", strerror(errno));
+        return;
+    }
+    printf("buffer: %s\n", buffer);
+    // TODO: validar formato da mensagem recebida
+    // e enviar "ERR" se estiver errado
+    label = buffer;
+    *(label+3) = '\0';
+    if (!strcmp(label, "OPA")) {
+        response_open(fd, buffer);
+    } else if (!strcmp(label, "CLS")) {
+        udp_send(fd, "RCL OK\n");
+    } else if (!strcmp(label, "LST")) {
+        udp_send(fd, "RST OK\n");
+    } else if (!strcmp(label, "SAS")) {
+        udp_send(fd, "RSA OK\n");
+    } else if (!strcmp(label, "BID")) {
+        udp_send(fd, "RBD OK\n");
+    } else {
+        printf("Received unreconizable message: %s\n", buffer);
+    }
+}
 
-    int fd = udp_socket();
-    udp_bind(fd);
+void udp_command_choser(int fd) {
+    char *label, *delim = " \n";
+    char buffer[BUFSIZ_S];
+    udp_recv(fd, buffer);
+    // TODO: validar formato da mensagem recebida
+    // e enviar "ERR" se estiver errado
+    if (!(label = strtok(buffer, delim))) {}
     
+    if (!strcmp(label, "LIN")) {
+        char *uid = strtok(NULL, delim);
+        char *pwd = strtok(NULL, delim);
+        response_login(fd, uid, pwd);
+    } else if (!strcmp(label, "LOU")) {
+        char *uid = strtok(NULL, delim);
+        char *pwd = strtok(NULL, delim);
+        response_logout(fd, uid, pwd);
+    } else if (!strcmp(label, "UNR")) {
+        char *uid = strtok(NULL, delim);
+        char *pwd = strtok(NULL, delim);
+        response_unregister(fd, uid, pwd);
+    } else if (!strcmp(label, "LMA")) {
+        udp_send(fd, "RMA OK\n");
+    } else if (!strcmp(label, "LMB")) {
+        udp_send(fd, "RMB OK\n");
+    } else if (!strcmp(label, "LST")) {
+        udp_send(fd, "RST OK\n");
+    } else if (!strcmp(label, "SRC")) {
+        udp_send(fd, "RRC OK\n");
+    } else {
+        printf("Received unreconizable message: %s\n", buffer);
+    }
+}
+
+void client_listener() {
+    int new_fd, max_fd;
+
+    int fd_udp = udp_socket();
+    if (bind(fd_udp, server_addr, server_addrlen)) {
+        exit(EXIT_FAILURE);
+    }
+
+    int fd_tcp = tcp_socket();
+    if (bind(fd_tcp, server_addr, server_addrlen)) {
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(fd_tcp, 1) == -1) {
+        exit(EXIT_FAILURE);
+    }
+
+    fd_set rfds;
     while (1) {
-        // TODO: validar formato da mensagem recebida
-        // e enviar "ERR" se estiver errado
-        udp_recv(fd, buffer);
-        if (!(label = strtok(buffer, delim))) continue;
-        
-        if (!strcmp(label, "LIN")) {
-            char *uid = strtok(NULL, delim);
-            char *pwd = strtok(NULL, delim);
-            response_login(fd, uid, pwd);
-        } else if (!strcmp(label, "LOU")) {
-            char *uid = strtok(NULL, delim);
-            char *pwd = strtok(NULL, delim);
-            response_logout(fd, uid, pwd);
-            udp_send(fd, "RLO OK\n");
-        } else if (!strcmp(label, "UNR")) {
-            char *uid = strtok(NULL, delim);
-            char *pwd = strtok(NULL, delim);
-            response_unregister(fd, uid, pwd);
-        } else if (!strcmp(label, "LMA")) {
-            udp_send(fd, "RMA OK\n");
-        } else if (!strcmp(label, "LMB")) {
-            udp_send(fd, "RMB OK\n");
-        } else if (!strcmp(label, "LST")) {
-            udp_send(fd, "RST OK\n");
-        } else if (!strcmp(label, "SRC")) {
-            udp_send(fd, "RRC OK\n");
-        } else {
-            printf("Received unreconizable message: %s\n", buffer);
+        FD_ZERO(&rfds);
+        FD_SET(fd_udp, &rfds);
+        FD_SET(fd_tcp, &rfds);
+
+        int max_fd = fd_udp > fd_tcp ? fd_udp : fd_tcp;
+
+        if (select(max_fd + 1, &rfds, NULL, NULL, NULL) == -1) {
+            exit(EXIT_FAILURE);
+        }
+
+        if (FD_ISSET(fd_tcp, &rfds)) {
+            if ((new_fd = accept(fd_tcp, server_addr, &server_addrlen)) == -1) {
+                exit(EXIT_FAILURE);
+            }
+            tcp_command_choser(new_fd);
+        }
+
+        if (FD_ISSET(fd_udp, &rfds)) {
+            udp_command_choser(fd_udp);
         }
     }
 
-    close(fd);
+    close(fd_udp);
+    close(fd_tcp);
+    close(max_fd);
+
 }
 
 /* ---- Initialization ---- */
 
 int main(int argc, char **argv) {
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(DEFAULT_PORT);
-    server_addr.sin_addr.s_addr = inet_addr(DEFAULT_IP);
+    struct sockaddr_in server_addr_in;
+
+    server_addr_in.sin_family = AF_INET;
+    server_addr_in.sin_port = htons(DEFAULT_PORT);
+    server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
+    server_addr = (struct sockaddr*) &server_addr_in;
+    server_addrlen = sizeof(server_addr_in);
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], VERB_FLAG)) {
             verbose = 1;
         } else if (!strcmp(argv[i], PORT_FLAG)) {
-            server_addr.sin_port = htons(atoi(argv[++i]));
+            server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
             printf("tu es estupido vai po crl");
             exit(EXIT_FAILURE);
