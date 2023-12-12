@@ -19,6 +19,10 @@ ssize_t read_all(int fd, char *buffer, ssize_t nbytes) {
     while (nbytes && ((res = read(fd, buffer+readd, nbytes)) > 0)) {
         readd += res;
         nbytes -= res;
+        if (*(buffer+readd-1) == '\n') {
+            break;
+        }
+
     }
     return (res == -1) ? res : readd;
 }

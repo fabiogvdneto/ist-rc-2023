@@ -48,6 +48,9 @@
 #define SUCCESS 1
 #define ERROR 0
 
+#define CLOSED 0
+#define OPEN 1
+
 struct sockaddr* server_addr;
 
 socklen_t server_addrlen;
@@ -77,17 +80,6 @@ void udp_send(int fd, char *msg) {
     }
 
     if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
-}
-
-void udp_recv(int fd, char *buffer) {
-    ssize_t res = recvfrom(fd, buffer, BUFSIZ_S, 0, server_addr, &server_addrlen);
-
-    if (res == -1) {
-        printf("Error: could not receive message from server.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (DEBUG) printf("[UDP] Received %ld bytes: %s", res, buffer);
 }
 
 /* ---- AS File Management ---- */
@@ -318,27 +310,23 @@ int create_auction_dir() {
 int create_start_file(char *uid, char *name, char *fname, char *start_value, char *timeactive) {
     char start_name[40];
     char start_datetime[DATE_LEN + TIME_LEN + 2];
-    char buffer[BUFSIZ_S];
     FILE *fp;
 
-    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", next_aid, next_aid);
-    
     time_t rawtime;
     struct tm *timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
+    
     sprintf(start_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
         timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
         timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-    
-    sprintf(buffer, "%s %s %s %s %s %s %ld", uid, name, fname, start_value,
-        timeactive, start_datetime, rawtime);
 
-
+    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", next_aid, next_aid);
     if ((fp = fopen(start_name, "w")) == NULL) {
         return ERROR;
     }
-    fprintf(fp, "%s", buffer);
+    fprintf(fp, "%s %s %s %s %s %s %ld", uid, name, fname, start_value,
+        timeactive, start_datetime, rawtime);
     fclose(fp);
     return SUCCESS;
 }
@@ -349,7 +337,7 @@ int add_user_auction(char *uid) {
     char user_auction_name[40];
     FILE *fp;
     
-    sprintf(user_auction_name, "USERS/%s/HOSTED/%s.txt", uid, next_aid);
+    sprintf(user_auction_name, "USERS/%s/HOSTED/%03d.txt", uid, next_aid);
     if ((fp = fopen(user_auction_name, "w")) == NULL) {
         return ERROR;
     }
@@ -357,70 +345,42 @@ int add_user_auction(char *uid) {
     return SUCCESS;
 }
 
-int create_end_file(char *aid) {
+int create_end_file(char *aid, time_t end_fulltime) {
     char end_filename[40];
     char start_filename[40];
     char end_datetime[DATE_LEN + TIME_LEN + 2];
     long start_fulltime;
-    char buffer[BUFSIZ_S];
     FILE *fp;
 
     sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-
-    sprintf(end_filename, "AUCTIONS/%s/END_%s.txt", aid, aid);
     if ((fp = fopen(start_filename, "r")) == NULL) {
         return ERROR;
     }
-    fscanf(fp, "%s %s %s %s %s %s %ld", NULL, NULL, NULL, NULL, NULL, NULL, start_fulltime);
+    fscanf(fp, "%*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
+    fclose(fp);
 
-    time_t rawtime;
     struct tm *timeinfo;
-    time(&rawtime);
+    time(&end_fulltime);
+    timeinfo = localtime(&end_fulltime);
+
     sprintf(end_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
         timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
         timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
 
-    long end_sec_time = (long) time(NULL) - start_fulltime;
-
-    return 1;
-
-    
-    
-    if ((fp = fopen(end_filename, "r")) == NULL) {
+    sprintf(end_filename, "AUCTIONS/%s/END_%s.txt", aid, aid);
+    if ((fp = fopen(end_filename, "w")) == NULL) {
         return ERROR;
     }
-    fprintf(fp, "%s", buffer);
+    fprintf(fp, "%s %ld", end_datetime, end_fulltime - start_fulltime);
     fclose(fp);
     return SUCCESS;
 }
-
-// TODO: create_end_file para quando fizer close
 
 int find_auction(char *aid) {
     DIR *d = opendir("AUCTIONS");
     struct dirent *p;
 
-    while (p = readdir(d)) {
-        if (!strncmp(p->d_name, aid, 3)) {
-            closedir(d);
-            return SUCCESS;
-        }
-    }
-
-    closedir(d);
-    return NON_EXIST;
-}
-
-// TODO: função mais geral para encontrar ficheiro numa diretoria
-
-int find_user_auction(char *uid, char *aid) {
-    char dirname[50];
-    sprintf(dirname, "USERS/%s/HOSTED", uid);
-
-    DIR *d = opendir(dirname);
-    struct dirent *p;
-
-    while (p = readdir(p)) {
+    while ((p = readdir(d))) {
         if (!strncmp(p->d_name, aid, 3)) {
             closedir(d);
             return SUCCESS;
@@ -445,6 +405,77 @@ int find_end(char *aid) {
     }
     fclose(fp);
     return SUCCESS;
+}
+
+int check_auction_state(char *aid) {
+    if (find_end(aid) == SUCCESS) {
+        return CLOSED;
+    }
+
+    char start_filename[40];
+    long start_fulltime, timeactive;
+    FILE *fp;
+
+    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
+    if ((fp = fopen(start_filename, "r")) == NULL) {
+        return ERROR;
+    }
+    fscanf(fp, "%*s %*s %*s %*s %ld %*s %*s %ld", &timeactive, &start_fulltime);
+    fclose(fp);
+
+    time_t curr_fulltime;
+    time(&curr_fulltime);
+
+    if ((curr_fulltime - start_fulltime) > timeactive) {
+        create_end_file(aid, start_fulltime + timeactive);
+        return CLOSED;
+    } else {
+        return OPEN;
+    }
+
+}
+
+// TODO: função mais geral para encontrar ficheiro numa diretoria
+
+int find_user_auction(char *uid, char *aid) {
+    char dirname[50];
+    sprintf(dirname, "USERS/%s/HOSTED", uid);
+
+    DIR *d = opendir(dirname);
+    struct dirent *p;
+
+    while ((p = readdir(d))) {
+        if (!strncmp(p->d_name, aid, 3)) {
+            closedir(d);
+            return SUCCESS;
+        }
+    }
+
+    closedir(d);
+    return NON_EXIST;
+}
+
+int extract_user_auctions(char *uid, char *buffer) {
+    char dirname[50];
+    sprintf(dirname, "USERS/%s/HOSTED", uid);
+
+    DIR *d = opendir(dirname);
+    struct dirent *p = readdir(d);
+    char aid[AUCTION_ID_LEN+1];
+    int count = 0;
+    ssize_t printed = 0;
+
+    while ((p = readdir(d))) {
+        if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
+            continue;
+        }
+        memcpy(aid, p->d_name, 3);
+        printed = sprintf(buffer+printed, " %s %d", aid, check_auction_state(aid));
+        count++;
+    }
+
+    closedir(d);
+    return count;
 }
 
 /* ---- Responses ---- */
@@ -653,7 +684,7 @@ void response_open(int fd, char *msg) {
     } else if (ret == SUCCESS) {
         create_auction_dir();
         create_start_file(uid, name, fname, start_value, timeactive);
-        add_auction_file(uid);
+        add_user_auction(uid);
         // TODO: call create_asset_file());
         char buffer[BUFSIZ_S];
         int printed;
@@ -680,8 +711,8 @@ void response_close(int fd, char *msg) {
     char *aid = strchr(pwd, ' ');
     *aid++ = '\0';
 
-    char *end = strchrnul(aid, ' ');
-    *(end-1) = '\0';
+    char *end = strchr(aid, '\n');
+    *(end) = '\0';
 
     if (!validate_user_id(uid) || !validate_user_password(pwd) || !validate_auction_id(aid)) {
         if (write_all(fd, "ROA ERR\n", 8) == -1) {
@@ -712,18 +743,62 @@ void response_close(int fd, char *msg) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && find_end(aid) == SUCCESS) {
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && check_auction_state(aid) == CLOSED) {
         if (write_all(fd, "RCL END\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && find_end(aid) == NON_EXIST) {
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && check_auction_state(aid) == OPEN) {
+        time_t curr_fulltime;
+        time(&curr_fulltime);
+        create_end_file(aid, curr_fulltime);
+
         if (write_all(fd, "RCL OK\n", 7) == -1) {
             printf("ERROR\n");
             return;
         }
     }
 
+}
+
+void response_myauctions(int fd, char *uid) {
+    if (!validate_user_id(uid)) {
+        if (sendto(fd, "RMA ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_login(uid);
+    if (ret == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NON_EXIST) {
+        if (sendto(fd, "RMA NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS) {
+        char auctions[BUFSIZ_L];
+        int count = extract_user_auctions(uid, auctions);
+        printf("count: %d\n", count);
+        if (!count) {
+            if (sendto(fd, "RMA NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        } else {
+            char buffer[BUFSIZ_L+7];
+            memset(buffer, 0, BUFSIZ_L+7);
+            sprintf(buffer, "RMA OK%s\n", auctions);
+            printf("buffer: %s\n", buffer);
+            if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR4\n");
+                return;
+            }
+        }
+
+    }
 }
 
 /* ---- Client Listener ---- */
@@ -739,12 +814,14 @@ void extract_label(char *command, char *label, int n) {
 void tcp_command_choser(int fd) {
     char *label;
     char buffer[BUFSIZ_L];
+    memset(buffer, 0, BUFSIZ_L);
     ssize_t received = read_all(fd, buffer, BUFSIZ_L);
     if (received == -1) {
         printf("ERROR: %s.\n", strerror(errno));
         return;
     }
-    printf("buffer: %s\n", buffer);
+    // TODO: fix not printing the buffer
+    printf("[TCP] Received: %s", buffer);
     // TODO: validar formato da mensagem recebida
     // e enviar "ERR" se estiver errado
     label = buffer;
@@ -753,7 +830,6 @@ void tcp_command_choser(int fd) {
         response_open(fd, buffer);
     } else if (!strcmp(label, "CLS")) {
         response_close(fd, buffer);
-        //udp_send(fd, "RCL OK\n");
     } else if (!strcmp(label, "LST")) {
         udp_send(fd, "RST OK\n");
     } else if (!strcmp(label, "SAS")) {
@@ -768,7 +844,13 @@ void tcp_command_choser(int fd) {
 void udp_command_choser(int fd) {
     char *label, *delim = " \n";
     char buffer[BUFSIZ_S];
-    udp_recv(fd, buffer);
+    memset(buffer, 0, BUFSIZ_S);
+    ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, server_addr, &server_addrlen);
+    if (received == -1) {
+        printf("ERROR: %s.\n", strerror(errno));
+        return;
+    } 
+    printf("[UDP] Received: %s", buffer);
     // TODO: validar formato da mensagem recebida
     // e enviar "ERR" se estiver errado
     if (!(label = strtok(buffer, delim))) {}
@@ -786,7 +868,8 @@ void udp_command_choser(int fd) {
         char *pwd = strtok(NULL, delim);
         response_unregister(fd, uid, pwd);
     } else if (!strcmp(label, "LMA")) {
-        udp_send(fd, "RMA OK\n");
+        char *uid = strtok(NULL, delim);
+        response_myauctions(fd, uid); 
     } else if (!strcmp(label, "LMB")) {
         udp_send(fd, "RMB OK\n");
     } else if (!strcmp(label, "LST")) {
@@ -865,6 +948,14 @@ int main(int argc, char **argv) {
             printf("tu es estupido vai po crl");
             exit(EXIT_FAILURE);
         }
+    }
+
+    if ((mkdir("AUCTIONS", S_IRWXU) == -1) && (errno != EEXIST)) {
+        exit(EXIT_FAILURE);
+    }
+
+    if ((mkdir("USERS", S_IRWXU) == -1) && (errno != EEXIST)) {
+        exit(EXIT_FAILURE);
     }
 
     client_listener();
