@@ -1,12 +1,12 @@
 #define _POSIX_C_SOURCE 199309L
 
-#include <stdio.h>
 #include <sys/types.h>
+#include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <ctype.h>
 
 /* Networking */
 #include <netdb.h>
@@ -23,6 +23,9 @@
 
 /* Auction Protocol */
 #include "auction.h"
+
+/* Misc */
+#include "utils.h"
 
 /* TODO
 
@@ -99,40 +102,6 @@ int udp_socket() {
 
 int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
-}
-
-/* ---- Read & Write ---- */
-
-ssize_t write_all(int fd, char *buffer, size_t nbytes) {
-    ssize_t readd = 0;
-    ssize_t res;
-    while ((res = write(fd, buffer+readd, nbytes-readd)) > 0) {
-        readd += res;
-    }
-    return (res == -1) ? res : readd;
-}
-
-ssize_t read_all(int fd, char *buffer, ssize_t nbytes) {
-    ssize_t written = 0;
-    ssize_t res;
-    while ((res = read(fd, buffer+written, nbytes-written)) > 0) {
-        written += res;
-        if (res < nbytes) break;
-    }
-    return (res == -1) ? res : written;
-}
-
-/* ---- Validators ---- */
-
-/**
- * This fucntion is similar to strspn() builtin function, but the initial segment can only be 
- * located at the start of the string.
- * Returns the number of bytes from prefix that matches the given string.
-*/
-int startswith(char *prefix, char *str) {
-    char *start = str;
-    while (*prefix && (*prefix++ == *str++));
-    return (str - start);
 }
 
 /* ---- Commands ---- */

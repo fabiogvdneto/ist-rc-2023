@@ -22,8 +22,11 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-/* Auction */
+/* Auction Protocol */
 #include "auction.h"
+
+/* Misc */
+#include "utils.h"
 
 /* Roadmap (server.c) 
 - fazer resposta ao open
@@ -62,26 +65,6 @@ int udp_socket() {
 
 int tcp_socket() {
     return socket(AF_INET, SOCK_STREAM, 0);
-}
-
-/* ---- Read & Write ---- */
-
-ssize_t write_all(int fd, char *buffer, size_t nbytes) {
-    ssize_t written = 0;
-    ssize_t res;
-    while ((res = write(fd, buffer+written, nbytes-written)) > 0) {
-        written += res;
-    }
-    return (res == -1) ? res : written;
-}
-
-ssize_t read_all(int fd, char *buffer, size_t nbytes) {
-    ssize_t readd = 0;
-    ssize_t res;
-    while ((res = read(fd, buffer+readd, nbytes-readd)) > 0) {
-        readd += res;
-    }
-    return (res == -1) ? res : readd;
 }
 
 void udp_send(int fd, char *msg) {
