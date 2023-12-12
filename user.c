@@ -37,25 +37,6 @@ Lembrar de usar:
 - Create some tests
 */
 
-#define ERROR_COMMAND_NOT_FOUND \
-    "Unknown command. Type 'help' for a list of commands available.\n"
-#define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
-#define ERROR_NOT_LOGGED_IN "You need to login first.\n"
-#define ERROR_EXIT_LOGGED_IN "You need to logout first.\n"
-#define ERROR_SOCKET "[Error] Could not create socket.\n"
-#define ERROR_MMAP "[Error] Failed to map file into memory.\n"
-#define ERROR_MUNMAP "[Error] Failed to unmap file from memory.\n"
-#define ERROR_SEND_MSG "[Error] Could not send message to server.\n"
-#define ERROR_RECV_MSG "[Error] Could not receive message from server.\n"
-#define ERROR_CONNECT "[Error] Could not establish connection with server.\n"
-#define ERROR_SPRINTF "[Error] sprintf().\n"
-#define ERROR_SSCANF "[Error] sscanf().\n"
-#define ERROR_OPEN "[Error] Failed to open file.\n"
-#define ERROR_MKDIR "[Error] Failed to create directory.\n"
-#define ERROR_FSTAT "[Error] Failed to get file attributes.\n"
-#define ERROR_FGETS "[Error] Could not read from stdin.\n"
-#define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
-
 #define INVALID_PROTOCOL_MSG "Received invalid message from auction server.\n"
 #define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
 #define INVALID_USER_PWD "The password must be composed of 8 alphanumeric characters.\n"
@@ -743,15 +724,15 @@ void command_show_asset(char *aid) {
             return;
         }
 
-        char pathname[BUFSIZ_S];
-        if (sprintf(pathname, "output/%s", fname) < 0) {
-            close(serverfd);
-            panic(ERROR_SPRINTF);
-        }
-
         if ((mkdir("output", S_IRWXU) == -1) && (errno != EEXIST)) {
             close(serverfd);
             panic(ERROR_MKDIR);
+        }
+
+        char pathname[BUFSIZ_S] = "output";
+        if (sprintf(pathname, "output/%s", fname) < 0) {
+            close(serverfd);
+            panic(ERROR_SPRINTF);
         }
 
         int fd = open(pathname, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
