@@ -90,18 +90,18 @@ int create_user_dir(char *uid) {
     char bidded_dirname[30];
 
     sprintf(uid_dirname, "USERS/%s", uid);
-    if ((mkdir(uid_dirname, 0700)) == -1) {
+    if ((mkdir(uid_dirname, S_IRWXU)) == -1) {
         return ERROR;
     }
 
     sprintf(hosted_dirname, "USERS/%s/HOSTED", uid);
-    if ((mkdir(hosted_dirname, 0700)) == -1) {
+    if ((mkdir(hosted_dirname, S_IRWXU)) == -1) {
         rmdir(uid_dirname);
         return ERROR;
     }
 
     sprintf(bidded_dirname, "USERS/%s/BIDDED", uid);
-    if ((mkdir(bidded_dirname, 0700)) == -1) {
+    if ((mkdir(bidded_dirname, S_IRWXU)) == -1) {
         rmdir(uid_dirname);
         rmdir(hosted_dirname);
         return ERROR;
@@ -287,18 +287,18 @@ int create_auction_dir() {
     char bids_dirname[30];
 
     sprintf(aid_dirname, "AUCTIONS/%03d", next_aid);
-    if ((mkdir(aid_dirname, 0700)) == -1) {
+    if ((mkdir(aid_dirname, S_IRWXU)) == -1) {
         return ERROR;
     }
 
     sprintf(asset_dirname, "AUCTIONS/%03d/ASSET", next_aid);
-    if ((mkdir(asset_dirname, 0700)) == -1) {
+    if ((mkdir(asset_dirname, S_IRWXU)) == -1) {
         rmdir(aid_dirname);
         return ERROR;
     }
 
     sprintf(bids_dirname, "AUCTIONS/%03d/BIDS", next_aid);
-    if ((mkdir(bids_dirname, 0700)) == -1) {
+    if ((mkdir(bids_dirname, S_IRWXU)) == -1) {
         rmdir(aid_dirname);
         rmdir(asset_dirname);
         return ERROR;
