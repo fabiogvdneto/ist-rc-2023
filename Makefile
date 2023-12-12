@@ -1,16 +1,14 @@
-all: user.c auction.c server.c
-	gcc -Wall -Wextra user.c auction.c -o user
-	gcc -Wall -Wextra server.c auction.c -o server
+CFLAGS = -Wall -Wextra
 
-server: server.c auction.c
-	gcc -Wall -Wextra server.c auction.c -o server
+all: user server
 
-user: user.c auction.c
-	gcc -Wall -Wextra user.c auction.c -o user
+user: user.c auction.c utils.c
+
+server: server.c auction.c utils.c
 
 clean:
 	rm -f user server
-	rm -f -r output/
-	rm -f -r USERS AUCTIONS
-	mkdir USERS
-	mkdir AUCTIONS
+
+purge:
+	rm -rf USERS AUCTIONS
+	rm -rf output
