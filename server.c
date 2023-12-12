@@ -70,16 +70,6 @@ int verbose = 0;
 /* ---- Next Auction ID */
 int next_aid = 1;
 
-/* ---- Sockets ---- */
-
-int udp_socket() {
-    return socket(AF_INET, SOCK_DGRAM, 0);
-}
-
-int tcp_socket() {
-    return socket(AF_INET, SOCK_STREAM, 0);
-}
-
 void udp_send(int fd, char *msg) {
     size_t n = strlen(msg);
     ssize_t res = sendto(fd, msg, n, 0, server_addr, server_addrlen);
@@ -758,7 +748,7 @@ void response_open(int fd, char *msg) {
      !validate_auction_name(name) || !validate_auction_value(start_value) ||
      !validate_auction_duration(timeactive) || !validate_file_name(fname) ||
      !validate_file_size(fsize)) {
-        if (write_all(fd, "ROA ERR\n", 8) == -1) {
+        if (write(fd, "ROA ERR\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -766,7 +756,7 @@ void response_open(int fd, char *msg) {
 
     int ret = find_login(uid);
     if (ret == NON_EXIST) {
-        if (write_all(fd, "ROA NLG\n", 8) == -1) {
+        if (write(fd, "ROA NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -783,7 +773,7 @@ void response_open(int fd, char *msg) {
             printf("ERROR in sprintf\n");
             return;
         }
-        if (write_all(fd, buffer, printed) == -1) {
+        if (write(fd, buffer, printed) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -806,7 +796,7 @@ void response_close(int fd, char *msg) {
     *(end) = '\0';
 
     if (!validate_user_id(uid) || !validate_user_password(pwd) || !validate_auction_id(aid)) {
-        if (write_all(fd, "ROA ERR\n", 8) == -1) {
+        if (write(fd, "ROA ERR\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -820,22 +810,22 @@ void response_close(int fd, char *msg) {
         printf("ERROR\n");
         return;
     } else if (ret == NON_EXIST) {
-        if (write_all(fd, "RCL NLG\n", 8) == -1) {
+        if (write(fd, "RCL NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
     } else if (ret == SUCCESS && ret2 == NON_EXIST) {
-        if (write_all(fd, "RCL EAU\n", 8) == -1) {
+        if (write(fd, "RCL EAU\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
     } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == NON_EXIST) {
-        if (write_all(fd, "RCL EOW\n", 8) == -1) {
+        if (write(fd, "RCL EOW\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
     } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && check_auction_state(aid) == CLOSED) {
-        if (write_all(fd, "RCL END\n", 8) == -1) {
+        if (write(fd, "RCL END\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -844,7 +834,7 @@ void response_close(int fd, char *msg) {
         time(&curr_fulltime);
         create_end_file(aid, curr_fulltime);
 
-        if (write_all(fd, "RCL OK\n", 7) == -1) {
+        if (write(fd, "RCL OK\n", 7) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -909,7 +899,7 @@ void response_bid(int fd, char *msg) {
 
     if (!validate_user_id(uid) || !validate_user_password(pwd) ||
      !validate_auction_id(aid) || !validate_auction_value(value_str)) {
-        if (write_all(fd, "RBD ERR\n", 8) == -1) {
+        if (write(fd, "RBD ERR\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -924,12 +914,12 @@ void response_bid(int fd, char *msg) {
         printf("ERROR\n");
         return;
     } else if (ret == NON_EXIST) {
-        if (write_all(fd, "RBD NLG\n", 8) == -1) {
+        if (write(fd, "RBD NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
     } else if (ret2 == NON_EXIST) {
-        if (write_all(fd, "RBD NOK\n", 8) == -1) {
+        if (write(fd, "RBD NOK\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -939,24 +929,24 @@ void response_bid(int fd, char *msg) {
             printf("ERROR\n");
             return;
         } else if (ret3 == SUCCESS) {
-            if (write_all(fd, "RBD ILG\n", 8) == -1) {
+            if (write(fd, "RBD ILG\n", 8) == -1) {
                 printf("ERROR\n");
                 return;
             }
         } else { // a partir daqui sabemos que o auction não pertence ao cliente
             if (check_auction_state(aid) == CLOSED) {
-                if (write_all(fd, "RBD NOK\n", 8) == -1) {
+                if (write(fd, "RBD NOK\n", 8) == -1) {
                     printf("ERROR\n");
                     return;
                 }
             } else { // a partir daqui sabemos que o auction está aberto
                 if (value <= get_max_bid_value(aid)) {
-                    if (write_all(fd, "RBD REF\n", 8) == -1) {
+                    if (write(fd, "RBD REF\n", 8) == -1) {
                         printf("ERROR\n");
                         return;
                     }
                 } else { // bid aceite
-                    if (write_all(fd, "RBD ACC\n", 8) == -1) {
+                    if (write(fd, "RBD ACC\n", 8) == -1) {
                         printf("ERROR\n");
                         return;
                     }
@@ -982,7 +972,7 @@ void tcp_command_choser(int fd) {
     char *label;
     char buffer[BUFSIZ_L];
     memset(buffer, 0, BUFSIZ_L);
-    ssize_t received = read_all(fd, buffer, BUFSIZ_L);
+    ssize_t received = read(fd, buffer, BUFSIZ_L);
     if (received == -1) {
         printf("ERROR: %s.\n", strerror(errno));
         return;

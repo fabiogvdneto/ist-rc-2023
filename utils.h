@@ -3,9 +3,11 @@
 
 #include <sys/types.h>
 
-ssize_t write_all(int fd, char *buffer, ssize_t nbytes);
+void panic(char *str);
 
-ssize_t read_all(int fd, char *buffer, ssize_t nbytes);
+int udp_socket();
+
+int tcp_socket();
 
 int startswith(char *prefix, char *str);
 

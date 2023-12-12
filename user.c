@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 199309L // struct sigaction
 
 #include <sys/types.h>
 #include <ctype.h>
@@ -88,21 +88,6 @@ char user_uid[USER_ID_LEN+1];
 char user_pwd[USER_PWD_LEN+1];
 
 int islogged = 0;
-
-void panic(char *str) {
-    fprintf(stderr, "%s", str);
-    exit(EXIT_FAILURE);
-}
-
-/* ---- Sockets ---- */
-
-int udp_socket() {
-    return socket(AF_INET, SOCK_DGRAM, 0);
-}
-
-int tcp_socket() {
-    return socket(AF_INET, SOCK_STREAM, 0);
-}
 
 /* ---- Commands ---- */
 
@@ -346,12 +331,12 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         exit(EXIT_FAILURE);
     }
 
-    if (write_all(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    if (write_all(serverfd, fdata, fsize) == -1) {
+    if (write(serverfd, fdata, fsize) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
@@ -366,7 +351,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -429,12 +414,12 @@ void command_close(char *aid) {
         panic(ERROR_CONNECT);
     }
 
-    if (write_all(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -717,7 +702,7 @@ void command_show_asset(char *aid) {
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read_all(serverfd, buffer, BUFSIZ_L);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_L);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -780,7 +765,7 @@ void command_show_asset(char *aid) {
 
         to_write = (remaining > to_write) ? to_write : remaining;
 
-        ssize_t written = write_all(fd, fdata, to_write);
+        ssize_t written = write(fd, fdata, to_write);
         if (written == -1) {
             close(serverfd);
             close(fd);
@@ -802,14 +787,14 @@ void command_show_asset(char *aid) {
                 panic(INVALID_PROTOCOL_MSG);
             }
 
-            if ((written = write_all(fd, buffer, to_write)) == -1) {
+            if ((written = write(fd, buffer, to_write)) == -1) {
                 close(serverfd);
                 close(fd);
                 panic(ERROR_SEND_MSG);
             }
         }
 
-        if ((received = read_all(serverfd, buffer, BUFSIZ_S)) == -1) {
+        if ((received = read(serverfd, buffer, BUFSIZ_S)) == -1) {
             panic(ERROR_RECV_MSG);
         }
 
@@ -865,12 +850,12 @@ void command_bid(char *aid, char *value) {
         panic(ERROR_CONNECT);
     }
 
-    if (write_all(serverfd, buffer, printed) == -1) {
+    if (write(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
     
-    ssize_t received = read_all(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);

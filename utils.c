@@ -1,30 +1,26 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 
+#include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include "utils.h"
 
-/* ---- Read & Write ---- */
-
-ssize_t write_all(int fd, char *buffer, ssize_t nbytes) {
-    ssize_t res, written = 0;
-    while ((res = write(fd, buffer+written, nbytes-written)) > 0) {
-        written += res;
-    }
-    return (res == -1) ? res : written;
+void panic(char *str) {
+    fprintf(stderr, "%s", str);
+    exit(EXIT_FAILURE);
 }
 
-ssize_t read_all(int fd, char *buffer, ssize_t nbytes) {
-    ssize_t res, readd = 0;
-    while (nbytes && ((res = read(fd, buffer+readd, nbytes)) > 0)) {
-        readd += res;
-        nbytes -= res;
-        if (*(buffer+readd-1) == '\n') {
-            break;
-        }
+/* ---- Sockets ---- */
 
-    }
-    return (res == -1) ? res : readd;
+int udp_socket() {
+    return socket(AF_INET, SOCK_DGRAM, 0);
+}
+
+int tcp_socket() {
+    return socket(AF_INET, SOCK_STREAM, 0);
 }
 
 /* ---- Validators ---- */
