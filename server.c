@@ -52,7 +52,7 @@ socklen_t server_addrlen;
 int verbose = 0;
 
 /* ---- Next Auction ID */
-int aid = 1;
+int next_aid = 1;
 
 /* ---- Sockets ---- */
 
@@ -311,18 +311,18 @@ int create_auction_dir() {
     char asset_dirname[30];
     char bids_dirname[30];
 
-    sprintf(aid_dirname, "AUCTIONS/%03d", aid);
+    sprintf(aid_dirname, "AUCTIONS/%03d", next_aid);
     if ((mkdir(aid_dirname, 0700)) == -1) {
         return ERROR;
     }
 
-    sprintf(asset_dirname, "AUCTIONS/%03d/ASSET", aid);
+    sprintf(asset_dirname, "AUCTIONS/%03d/ASSET", next_aid);
     if ((mkdir(asset_dirname, 0700)) == -1) {
         rmdir(aid_dirname);
         return ERROR;
     }
 
-    sprintf(bids_dirname, "AUCTIONS/%03d/BIDS", aid);
+    sprintf(bids_dirname, "AUCTIONS/%03d/BIDS", next_aid);
     if ((mkdir(bids_dirname, 0700)) == -1) {
         rmdir(aid_dirname);
         rmdir(asset_dirname);
@@ -334,16 +334,16 @@ int create_auction_dir() {
 
 int create_start_file(char *uid, char *name, char *fname, char *start_value, char *timeactive) {
     char start_name[40];
+    char start_datetime[DATE_LEN + TIME_LEN + 2];
     char buffer[BUFSIZ_S];
     FILE *fp;
 
-    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", aid, aid);
+    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", next_aid, next_aid);
     
     time_t rawtime;
     struct tm *timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    char start_datetime[DATE_LEN + TIME_LEN + 2];
     sprintf(start_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
         timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
         timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
@@ -362,7 +362,107 @@ int create_start_file(char *uid, char *name, char *fname, char *start_value, cha
 
 // TODO: create_asset_file
 
+int add_user_auction(char *uid) {
+    char user_auction_name[40];
+    FILE *fp;
+    
+    sprintf(user_auction_name, "USERS/%s/HOSTED/%s.txt", uid, next_aid);
+    if ((fp = fopen(user_auction_name, "w")) == NULL) {
+        return ERROR;
+    }
+    fclose(fp);
+    return SUCCESS;
+}
+
+int create_end_file(char *aid) {
+    char end_filename[40];
+    char start_filename[40];
+    char end_datetime[DATE_LEN + TIME_LEN + 2];
+    long start_fulltime;
+    char buffer[BUFSIZ_S];
+    FILE *fp;
+
+    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
+
+    sprintf(end_filename, "AUCTIONS/%s/END_%s.txt", aid, aid);
+    if ((fp = fopen(start_filename, "r")) == NULL) {
+        return ERROR;
+    }
+    fscanf(fp, "%s %s %s %s %s %s %ld", NULL, NULL, NULL, NULL, NULL, NULL, start_fulltime);
+
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    sprintf(end_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
+        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+    long end_sec_time = (long) time(NULL) - start_fulltime;
+
+    return 1;
+
+    
+    
+    if ((fp = fopen(end_filename, "r")) == NULL) {
+        return ERROR;
+    }
+    fprintf(fp, "%s", buffer);
+    fclose(fp);
+    return SUCCESS;
+}
+
 // TODO: create_end_file para quando fizer close
+
+int find_auction(char *aid) {
+    DIR *d = opendir("AUCTIONS");
+    struct dirent *p;
+
+    while (p = readdir(d)) {
+        if (!strncmp(p->d_name, aid, 3)) {
+            closedir(d);
+            return SUCCESS;
+        }
+    }
+
+    closedir(d);
+    return NON_EXIST;
+}
+
+// TODO: função mais geral para encontrar ficheiro numa diretoria
+
+int find_user_auction(char *uid, char *aid) {
+    char dirname[50];
+    sprintf(dirname, "USERS/%s/HOSTED", uid);
+
+    DIR *d = opendir(dirname);
+    struct dirent *p;
+
+    while (p = readdir(p)) {
+        if (!strncmp(p->d_name, aid, 3)) {
+            closedir(d);
+            return SUCCESS;
+        }
+    }
+
+    closedir(d);
+    return NON_EXIST;
+}
+
+int find_end(char *aid) {
+    char end_name[50];
+    FILE *fp;
+
+    sprintf(end_name, "AUCTIONS/%s/END_%s.txt", aid, aid);
+    if ((fp = fopen(end_name, "r")) == NULL) {
+        if (errno == ENOENT) {
+            return NON_EXIST;
+        } else {
+            return ERROR;
+        }
+    }
+    fclose(fp);
+    return SUCCESS;
+}
 
 /* ---- Responses ---- */
 
@@ -570,10 +670,11 @@ void response_open(int fd, char *msg) {
     } else if (ret == SUCCESS) {
         create_auction_dir();
         create_start_file(uid, name, fname, start_value, timeactive);
+        add_auction_file(uid);
         // TODO: call create_asset_file());
         char buffer[BUFSIZ_S];
         int printed;
-        if ((printed = sprintf(buffer, "ROA OK %03d\n", aid)) == -1) {
+        if ((printed = sprintf(buffer, "ROA OK %03d\n", next_aid)) == -1) {
             printf("ERROR in sprintf\n");
             return;
         }
@@ -581,9 +682,65 @@ void response_open(int fd, char *msg) {
             printf("ERROR\n");
             return;
         }
-        aid++;
+        next_aid++;
     }
     // quando é que retornaria ROA NOK?
+}
+
+void response_close(int fd, char *msg) {
+    // Message: CLS <uid> <password> <aid>
+    char *uid = msg + 4;
+
+    char *pwd = strchr(uid, ' ');
+    *pwd++ = '\0';
+
+    char *aid = strchr(pwd, ' ');
+    *aid++ = '\0';
+
+    char *end = strchrnul(aid, ' ');
+    *(end-1) = '\0';
+
+    if (!validate_user_id(uid) || !validate_user_password(pwd) || !validate_auction_id(aid)) {
+        if (write_all(fd, "ROA ERR\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_login(uid);
+    int ret2 = find_auction(aid);
+    int ret3 = find_user_auction(uid, aid);
+
+    if (ret == ERROR || ret2 == ERROR || ret3 == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NON_EXIST) {
+        if (write_all(fd, "RCL NLG\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS && ret2 == NON_EXIST) {
+        if (write_all(fd, "RCL EAU\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == NON_EXIST) {
+        if (write_all(fd, "RCL EOW\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && find_end(aid) == SUCCESS) {
+        if (write_all(fd, "RCL END\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && find_end(aid) == NON_EXIST) {
+        if (write_all(fd, "RCL OK\n", 7) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
 }
 
 /* ---- Client Listener ---- */
@@ -612,7 +769,8 @@ void tcp_command_choser(int fd) {
     if (!strcmp(label, "OPA")) {
         response_open(fd, buffer);
     } else if (!strcmp(label, "CLS")) {
-        udp_send(fd, "RCL OK\n");
+        response_close(fd, buffer);
+        //udp_send(fd, "RCL OK\n");
     } else if (!strcmp(label, "LST")) {
         udp_send(fd, "RST OK\n");
     } else if (!strcmp(label, "SAS")) {
@@ -698,9 +856,9 @@ void client_listener() {
         }
     }
 
+    close(max_fd);
     close(fd_udp);
     close(fd_tcp);
-    close(max_fd);
 
 }
 
