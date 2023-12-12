@@ -29,7 +29,17 @@
 #include "utils.h"
 
 /* Roadmap (server.c) 
-- fazer resposta ao open
+- implement function to create asset file
+- update global variable next_aid's value when executing the server
+- implement verbose mode
+- fix myauctions (stash smashed)
+- implement fork
+- implemente remaining responses:
+    - response to my_bids command
+    - response to list command
+    - response to show_asset command
+    - response to show_record command
+- add separate files (.c and .h) to keep functions that manage the AS database
 */
 
 #define DEBUG 1
@@ -46,10 +56,10 @@
 
 #define NON_EXIST 2
 #define SUCCESS 1
-#define ERROR 0
+#define ERROR -1
 
-#define CLOSED 0
-#define OPEN 1
+#define CLOSED 3
+#define OPEN 4
 
 struct sockaddr* server_addr;
 
@@ -356,11 +366,10 @@ int create_end_file(char *aid, time_t end_fulltime) {
     if ((fp = fopen(start_filename, "r")) == NULL) {
         return ERROR;
     }
-    fscanf(fp, "%*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
+    fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
     fclose(fp);
 
     struct tm *timeinfo;
-    time(&end_fulltime);
     timeinfo = localtime(&end_fulltime);
 
     sprintf(end_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
@@ -432,7 +441,88 @@ int check_auction_state(char *aid) {
     } else {
         return OPEN;
     }
+}
 
+long get_max_bid_value(char *aid) {
+    char dirname[50];
+    sprintf(dirname, "AUCTIONS/%s/BIDS", aid);
+
+    DIR *d = opendir(dirname);
+    struct dirent *p = readdir(d);
+    char bid_value_str[AUCTION_VALUE_LEN];
+    long max_bid_value = 0, bid_value, start_value = 0;
+    int count = 0;
+
+    while ((p = readdir(d))) {
+        if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
+            continue;
+        }
+        memcpy(bid_value_str, p->d_name, AUCTION_VALUE_LEN);
+        bid_value = atol(bid_value_str);
+        if (bid_value > max_bid_value) {
+            max_bid_value = bid_value;
+        }
+        count++;
+    }
+
+    if (!count) {
+        char start_filename[40];
+        FILE *fp;
+        sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
+        if ((fp = fopen(start_filename, "r")) == NULL) {
+            return ERROR;
+        }
+        fscanf(fp, "%*s %*s %*s %ld %*s %*s %*s %*s", &start_value);
+        fclose(fp);
+    }
+
+    closedir(d);
+    return (start_value > max_bid_value) ? start_value : max_bid_value;
+}
+
+int add_bid(char *uid, char *aid, long value) {
+    char bid_filename[50];
+    char start_filename[50];
+    long start_fulltime;
+    char bid_datetime[DATE_LEN + TIME_LEN + 2];
+    FILE *fp;
+
+    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
+    if ((fp = fopen(start_filename, "r")) == NULL) {
+        return ERROR;
+    }
+    fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
+    fclose(fp);
+
+    time_t bid_fulltime;
+    time(&bid_fulltime);
+    struct tm *timeinfo;
+    timeinfo = localtime(&bid_fulltime);
+
+    sprintf(bid_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
+        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+    sprintf(bid_filename, "AUCTIONS/%s/BIDS/%06ld.txt", aid, value);
+    if ((fp = fopen(bid_filename, "w")) == NULL) {
+        return ERROR;
+    }
+
+    fprintf(fp, "%s %ld %s %ld", uid, value, bid_datetime, bid_fulltime - start_fulltime);
+    fclose(fp);
+    return SUCCESS;
+}
+
+int add_bidded(char *uid, char *aid) {
+    char bidded_filename[50];
+    FILE *fp;
+
+    sprintf(bidded_filename, "USERS/%s/BIDDED/%s.txt", uid, aid);
+    if ((fp = fopen(bidded_filename, "w")) == NULL) {
+        return ERROR;
+    }
+    fclose(fp);
+    return SUCCESS;
 }
 
 // TODO: função mais geral para encontrar ficheiro numa diretoria
@@ -461,16 +551,17 @@ int extract_user_auctions(char *uid, char *buffer) {
 
     DIR *d = opendir(dirname);
     struct dirent *p = readdir(d);
-    char aid[AUCTION_ID_LEN+1];
-    int count = 0;
+    char aid[AUCTION_ID_LEN];
+    int count = 0, state;
     ssize_t printed = 0;
 
     while ((p = readdir(d))) {
         if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
             continue;
         }
-        memcpy(aid, p->d_name, 3);
-        printed = sprintf(buffer+printed, " %s %d", aid, check_auction_state(aid));
+        memcpy(aid, p->d_name, AUCTION_ID_LEN);
+        state = (check_auction_state(aid) == CLOSED) ? 0 : 1;
+        printed = sprintf(buffer+printed, " %s %d", aid, state);
         count++;
     }
 
@@ -781,7 +872,6 @@ void response_myauctions(int fd, char *uid) {
     } else if (ret == SUCCESS) {
         char auctions[BUFSIZ_L];
         int count = extract_user_auctions(uid, auctions);
-        printf("count: %d\n", count);
         if (!count) {
             if (sendto(fd, "RMA NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
                 printf("ERROR\n");
@@ -798,6 +888,83 @@ void response_myauctions(int fd, char *uid) {
             }
         }
 
+    }
+}
+
+void response_bid(int fd, char *msg) {
+    // Message: BID <uid> <password> <aid> <value>
+    char *uid = msg + 4;
+
+    char *pwd = strchr(uid, ' ');
+    *pwd++ = '\0';
+
+    char *aid = strchr(pwd, ' ');
+    *aid++ = '\0';
+
+    char *value_str = strchr(aid, ' ');
+    *value_str++ = '\0';
+
+    char *end = strchr(value_str, '\n');
+    *(end) = '\0';
+
+    if (!validate_user_id(uid) || !validate_user_password(pwd) ||
+     !validate_auction_id(aid) || !validate_auction_value(value_str)) {
+        if (write_all(fd, "RBD ERR\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    long value = atol(value_str);
+
+    int ret = find_login(uid);
+    int ret2 = find_auction(aid);
+
+    if (ret == ERROR || ret2 == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NON_EXIST) {
+        if (write_all(fd, "RBD NLG\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret2 == NON_EXIST) {
+        if (write_all(fd, "RBD NOK\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else { // a partir sabemos que o cliente está logged in e o auction existe
+        int ret3 = find_user_auction(uid, aid);
+        if (ret3 == ERROR) {
+            printf("ERROR\n");
+            return;
+        } else if (ret3 == SUCCESS) {
+            if (write_all(fd, "RBD ILG\n", 8) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        } else { // a partir daqui sabemos que o auction não pertence ao cliente
+            if (check_auction_state(aid) == CLOSED) {
+                if (write_all(fd, "RBD NOK\n", 8) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
+            } else { // a partir daqui sabemos que o auction está aberto
+                if (value <= get_max_bid_value(aid)) {
+                    if (write_all(fd, "RBD REF\n", 8) == -1) {
+                        printf("ERROR\n");
+                        return;
+                    }
+                } else { // bid aceite
+                    if (write_all(fd, "RBD ACC\n", 8) == -1) {
+                        printf("ERROR\n");
+                        return;
+                    }
+                    add_bid(uid, aid, value);
+                    add_bidded(uid, aid);
+                }
+            }
+        }
     }
 }
 
@@ -835,7 +1002,7 @@ void tcp_command_choser(int fd) {
     } else if (!strcmp(label, "SAS")) {
         udp_send(fd, "RSA OK\n");
     } else if (!strcmp(label, "BID")) {
-        udp_send(fd, "RBD OK\n");
+        response_bid(fd, buffer);
     } else {
         printf("Received unreconizable message: %s\n", buffer);
     }
