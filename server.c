@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include "AS_dbfunc.h"
 
 /* Auction Protocol */
 #include "auction.h"
@@ -30,16 +31,13 @@
 
 /* Roadmap (server.c) 
 - implement function to create asset file
-- update global variable next_aid's value when executing the server
 - implement verbose mode
-- fix myauctions (stash smashed)
 - implement fork
-- implemente remaining responses:
-    - response to my_bids command
+- implement remaining responses:
     - response to list command
     - response to show_asset command
     - response to show_record command
-- add separate files (.c and .h) to keep functions that manage the AS database
+- verify if user is already logged in when trying to log in
 */
 
 #define DEBUG 1
@@ -80,483 +78,6 @@ void udp_send(int fd, char *msg) {
     }
 
     if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
-}
-
-/* ---- AS File Management ---- */
-
-int create_user_dir(char *uid) {
-    char uid_dirname[20];
-    char hosted_dirname[30];
-    char bidded_dirname[30];
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    if ((mkdir(uid_dirname, S_IRWXU)) == -1) {
-        return ERROR;
-    }
-
-    sprintf(hosted_dirname, "USERS/%s/HOSTED", uid);
-    if ((mkdir(hosted_dirname, S_IRWXU)) == -1) {
-        rmdir(uid_dirname);
-        return ERROR;
-    }
-
-    sprintf(bidded_dirname, "USERS/%s/BIDDED", uid);
-    if ((mkdir(bidded_dirname, S_IRWXU)) == -1) {
-        rmdir(uid_dirname);
-        rmdir(hosted_dirname);
-        return ERROR;
-    }
-
-    return SUCCESS;
-}
-
-int erase_dir(char *dirname) {
-    DIR *d = opendir(dirname);
-    int r = -1;
-
-    if (d) {
-        struct dirent *p;
-
-        r = 0;
-        while (!r && (p = readdir(d))) {
-            int r2 = -1;
-            char buffer[BUFSIZ_L];
-
-            if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..")) {
-                continue;
-            }
-
-            struct stat statbuf;
-
-            sprintf(buffer, "%s/%s", dirname, p->d_name);
-            if (!stat(buffer, &statbuf)) {
-                if (S_ISDIR(statbuf.st_mode)) {
-                    r2 = erase_dir(buffer);
-                } else {
-                    r2 = unlink(buffer);
-                }
-            }
-            r = r2;
-        }
-        closedir(d);
-    }
-
-    if (!r) {
-        r = rmdir(dirname);
-    }
-
-    return r;
-}
-
-int erase_user_dir(char *uid) {
-    char uid_dirname[20];
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    erase_dir(uid_dirname);
-
-    return SUCCESS;
-}
-
-// 2 -> não existe diretoria
-// 1 -> existe diretoria
-// 0 -> erro
-int find_user_dir(char *uid) {
-    char uid_dirname[20];
-    FILE *fp;
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    if ((fp = fopen(uid_dirname, "r")) == NULL) {
-        if (errno == ENOENT) {
-            return NON_EXIST;
-        } else {
-            return ERROR;
-        }
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int create_login(char *uid) {
-    char login_name[40];
-    FILE *fp;
-    
-    sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
-    if ((fp = fopen(login_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "Logged in\n");
-    fclose(fp);
-    return SUCCESS;
-}
-
-int erase_login(char *uid) {
-    char login_name[40];
-
-    sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
-    unlink(login_name);
-    return SUCCESS;
-}
-
-// 2 -> não existe ficheiro de login
-// 1 -> existe ficheiro de login
-// 0 -> erro
-int find_login(char *uid) {
-    if (find_user_dir(uid) == NON_EXIST) {
-        return NON_EXIST;
-    }
-
-    char login_name[40];
-    FILE *fp;
-
-    sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
-    if ((fp = fopen(login_name, "r")) == NULL) {
-        if (errno == ENOENT) {
-            return NON_EXIST;
-        } else {
-            return ERROR;
-        }
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int create_password(char *uid, char *pwd) {
-    char pass_name[40];
-    FILE *fp;
-    
-    sprintf(pass_name, "USERS/%s/%s_pass.txt", uid, uid);
-    if ((fp = fopen(pass_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "%s", pwd);
-    fclose(fp);
-    return SUCCESS;
-}
-
-int extract_password(char *uid, char *ext_pwd) {
-    char pass_name[40];
-    FILE *fp;
-
-    sprintf(pass_name, "USERS/%s/%s_pass.txt", uid, uid);
-    if ((fp = fopen(pass_name, "r")) == NULL) {
-        return ERROR;
-    }
-
-    if (fread(ext_pwd, sizeof(char), USER_PWD_LEN, fp) != USER_PWD_LEN) {
-        return ERROR;
-    }
-
-    fclose(fp);
-    return SUCCESS;
-}
-
-int erase_password(char *uid) {
-    char pass_name[40];
-
-    sprintf(pass_name, "USERS/%s/%s_pass.txt", uid, uid);
-    unlink(pass_name);
-    return SUCCESS;
-}
-
-// 2 -> não existe ficheiro de password
-// 1 -> existe ficheiro de password
-// 0 -> erro
-int find_password(char *uid) {
-    if (find_user_dir(uid) == NON_EXIST) {
-        return NON_EXIST;
-    }
-
-    char password_name[40];
-    FILE *fp;
-
-    sprintf(password_name, "USERS/%s/%s_pass.txt", uid, uid);
-    if ((fp = fopen(password_name, "r")) == NULL) {
-        if (errno == ENOENT) {
-            return NON_EXIST;
-        } else {
-            return ERROR;
-        }
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int create_auction_dir() {
-    char aid_dirname[20];
-    char asset_dirname[30];
-    char bids_dirname[30];
-
-    sprintf(aid_dirname, "AUCTIONS/%03d", next_aid);
-    if ((mkdir(aid_dirname, S_IRWXU)) == -1) {
-        return ERROR;
-    }
-
-    sprintf(asset_dirname, "AUCTIONS/%03d/ASSET", next_aid);
-    if ((mkdir(asset_dirname, S_IRWXU)) == -1) {
-        rmdir(aid_dirname);
-        return ERROR;
-    }
-
-    sprintf(bids_dirname, "AUCTIONS/%03d/BIDS", next_aid);
-    if ((mkdir(bids_dirname, S_IRWXU)) == -1) {
-        rmdir(aid_dirname);
-        rmdir(asset_dirname);
-        return ERROR;
-    }
-
-    return SUCCESS;
-}
-
-int create_start_file(char *uid, char *name, char *fname, char *start_value, char *timeactive) {
-    char start_name[40];
-    char start_datetime[DATE_LEN + TIME_LEN + 2];
-    FILE *fp;
-
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    
-    sprintf(start_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
-        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-
-    sprintf(start_name, "AUCTIONS/%03d/START_%03d.txt", next_aid, next_aid);
-    if ((fp = fopen(start_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "%s %s %s %s %s %s %ld", uid, name, fname, start_value,
-        timeactive, start_datetime, rawtime);
-    fclose(fp);
-    return SUCCESS;
-}
-
-// TODO: create_asset_file
-
-int add_user_auction(char *uid) {
-    char user_auction_name[40];
-    FILE *fp;
-    
-    sprintf(user_auction_name, "USERS/%s/HOSTED/%03d.txt", uid, next_aid);
-    if ((fp = fopen(user_auction_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int create_end_file(char *aid, time_t end_fulltime) {
-    char end_filename[40];
-    char start_filename[40];
-    char end_datetime[DATE_LEN + TIME_LEN + 2];
-    long start_fulltime;
-    FILE *fp;
-
-    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-    if ((fp = fopen(start_filename, "r")) == NULL) {
-        return ERROR;
-    }
-    fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
-    fclose(fp);
-
-    struct tm *timeinfo;
-    timeinfo = localtime(&end_fulltime);
-
-    sprintf(end_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
-        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-
-    sprintf(end_filename, "AUCTIONS/%s/END_%s.txt", aid, aid);
-    if ((fp = fopen(end_filename, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "%s %ld", end_datetime, end_fulltime - start_fulltime);
-    fclose(fp);
-    return SUCCESS;
-}
-
-int find_auction(char *aid) {
-    DIR *d = opendir("AUCTIONS");
-    struct dirent *p;
-
-    while ((p = readdir(d))) {
-        if (!strncmp(p->d_name, aid, 3)) {
-            closedir(d);
-            return SUCCESS;
-        }
-    }
-
-    closedir(d);
-    return NON_EXIST;
-}
-
-int find_end(char *aid) {
-    char end_name[50];
-    FILE *fp;
-
-    sprintf(end_name, "AUCTIONS/%s/END_%s.txt", aid, aid);
-    if ((fp = fopen(end_name, "r")) == NULL) {
-        if (errno == ENOENT) {
-            return NON_EXIST;
-        } else {
-            return ERROR;
-        }
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int check_auction_state(char *aid) {
-    if (find_end(aid) == SUCCESS) {
-        return CLOSED;
-    }
-
-    char start_filename[40];
-    long start_fulltime, timeactive;
-    FILE *fp;
-
-    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-    if ((fp = fopen(start_filename, "r")) == NULL) {
-        return ERROR;
-    }
-    fscanf(fp, "%*s %*s %*s %*s %ld %*s %*s %ld", &timeactive, &start_fulltime);
-    fclose(fp);
-
-    time_t curr_fulltime;
-    time(&curr_fulltime);
-
-    if ((curr_fulltime - start_fulltime) > timeactive) {
-        create_end_file(aid, start_fulltime + timeactive);
-        return CLOSED;
-    } else {
-        return OPEN;
-    }
-}
-
-long get_max_bid_value(char *aid) {
-    char dirname[50];
-    sprintf(dirname, "AUCTIONS/%s/BIDS", aid);
-
-    DIR *d = opendir(dirname);
-    struct dirent *p = readdir(d);
-    char bid_value_str[AUCTION_VALUE_LEN];
-    long max_bid_value = 0, bid_value, start_value = 0;
-    int count = 0;
-
-    while ((p = readdir(d))) {
-        if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
-            continue;
-        }
-        memcpy(bid_value_str, p->d_name, AUCTION_VALUE_LEN);
-        bid_value = atol(bid_value_str);
-        if (bid_value > max_bid_value) {
-            max_bid_value = bid_value;
-        }
-        count++;
-    }
-
-    if (!count) {
-        char start_filename[40];
-        FILE *fp;
-        sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-        if ((fp = fopen(start_filename, "r")) == NULL) {
-            return ERROR;
-        }
-        fscanf(fp, "%*s %*s %*s %ld %*s %*s %*s %*s", &start_value);
-        fclose(fp);
-    }
-
-    closedir(d);
-    return (start_value > max_bid_value) ? start_value : max_bid_value;
-}
-
-int add_bid(char *uid, char *aid, long value) {
-    char bid_filename[50];
-    char start_filename[50];
-    long start_fulltime;
-    char bid_datetime[DATE_LEN + TIME_LEN + 2];
-    FILE *fp;
-
-    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-    if ((fp = fopen(start_filename, "r")) == NULL) {
-        return ERROR;
-    }
-    fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %ld", &start_fulltime);
-    fclose(fp);
-
-    time_t bid_fulltime;
-    time(&bid_fulltime);
-    struct tm *timeinfo;
-    timeinfo = localtime(&bid_fulltime);
-
-    sprintf(bid_datetime, "%04d-%02d-%02d %02d:%02d:%02d",
-        timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-        timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-
-    sprintf(bid_filename, "AUCTIONS/%s/BIDS/%06ld.txt", aid, value);
-    if ((fp = fopen(bid_filename, "w")) == NULL) {
-        return ERROR;
-    }
-
-    fprintf(fp, "%s %ld %s %ld", uid, value, bid_datetime, bid_fulltime - start_fulltime);
-    fclose(fp);
-    return SUCCESS;
-}
-
-int add_bidded(char *uid, char *aid) {
-    char bidded_filename[50];
-    FILE *fp;
-
-    sprintf(bidded_filename, "USERS/%s/BIDDED/%s.txt", uid, aid);
-    if ((fp = fopen(bidded_filename, "w")) == NULL) {
-        return ERROR;
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-// TODO: função mais geral para encontrar ficheiro numa diretoria
-
-int find_user_auction(char *uid, char *aid) {
-    char dirname[50];
-    sprintf(dirname, "USERS/%s/HOSTED", uid);
-
-    DIR *d = opendir(dirname);
-    struct dirent *p;
-
-    while ((p = readdir(d))) {
-        if (!strncmp(p->d_name, aid, 3)) {
-            closedir(d);
-            return SUCCESS;
-        }
-    }
-
-    closedir(d);
-    return NON_EXIST;
-}
-
-int extract_user_auctions(char *uid, char *buffer) {
-    char dirname[50];
-    sprintf(dirname, "USERS/%s/HOSTED", uid);
-
-    DIR *d = opendir(dirname);
-    struct dirent *p = readdir(d);
-    char aid[AUCTION_ID_LEN];
-    int count = 0, state;
-    ssize_t printed = 0;
-
-    while ((p = readdir(d))) {
-        if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
-            continue;
-        }
-        memcpy(aid, p->d_name, AUCTION_ID_LEN);
-        state = (check_auction_state(aid) == CLOSED) ? 0 : 1;
-        printed = sprintf(buffer+printed, " %s %d", aid, state);
-        count++;
-    }
-
-    closedir(d);
-    return count;
 }
 
 /* ---- Responses ---- */
@@ -763,9 +284,9 @@ void response_open(int fd, char *msg) {
     } else if (ret == ERROR) {
         printf("ERROR\n");
     } else if (ret == SUCCESS) {
-        create_auction_dir();
-        create_start_file(uid, name, fname, start_value, timeactive);
-        add_user_auction(uid);
+        create_auction_dir(next_aid);
+        create_start_file(next_aid, uid, name, fname, start_value, timeactive);
+        add_user_auction(next_aid, uid);
         // TODO: call create_asset_file());
         char buffer[BUFSIZ_S];
         int printed;
@@ -861,6 +382,7 @@ void response_myauctions(int fd, char *uid) {
         }
     } else if (ret == SUCCESS) {
         char auctions[BUFSIZ_L];
+        memset(auctions, 0, BUFSIZ_L);
         int count = extract_user_auctions(uid, auctions);
         if (!count) {
             if (sendto(fd, "RMA NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
@@ -868,10 +390,9 @@ void response_myauctions(int fd, char *uid) {
                 return;
             }
         } else {
-            char buffer[BUFSIZ_L+7];
-            memset(buffer, 0, BUFSIZ_L+7);
+            char buffer[BUFSIZ_L+8];
+            memset(buffer, 0, BUFSIZ_L+8);
             sprintf(buffer, "RMA OK%s\n", auctions);
-            printf("buffer: %s\n", buffer);
             if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
                 printf("ERROR4\n");
                 return;
@@ -880,6 +401,46 @@ void response_myauctions(int fd, char *uid) {
 
     }
 }
+
+void response_mybids(int fd, char *uid) {
+    if (!validate_user_id(uid)) {
+        if (sendto(fd, "RMB ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_login(uid);
+    if (ret == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NON_EXIST) {
+        if (sendto(fd, "RMB NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS) {
+        char auctions[BUFSIZ_L];
+        memset(auctions, 0, BUFSIZ_L);
+        int count = extract_user_bidded_auctions(uid, auctions);
+        if (!count) {
+            if (sendto(fd, "RMB NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        } else {
+            char buffer[BUFSIZ_L+8];
+            memset(buffer, 0, BUFSIZ_L+8);
+            sprintf(buffer, "RMB OK%s\n", auctions);
+            if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+                printf("ERROR4\n");
+                return;
+            }
+        }
+
+    }
+}
+
 
 void response_bid(int fd, char *msg) {
     // Message: BID <uid> <password> <aid> <value>
@@ -987,8 +548,6 @@ void tcp_command_choser(int fd) {
         response_open(fd, buffer);
     } else if (!strcmp(label, "CLS")) {
         response_close(fd, buffer);
-    } else if (!strcmp(label, "LST")) {
-        udp_send(fd, "RST OK\n");
     } else if (!strcmp(label, "SAS")) {
         udp_send(fd, "RSA OK\n");
     } else if (!strcmp(label, "BID")) {
@@ -1028,7 +587,8 @@ void udp_command_choser(int fd) {
         char *uid = strtok(NULL, delim);
         response_myauctions(fd, uid); 
     } else if (!strcmp(label, "LMB")) {
-        udp_send(fd, "RMB OK\n");
+        char *uid = strtok(NULL, delim);
+        response_mybids(fd, uid);
     } else if (!strcmp(label, "LST")) {
         udp_send(fd, "RST OK\n");
     } else if (!strcmp(label, "SRC")) {
@@ -1115,5 +675,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    next_aid = update_next_aid();
     client_listener();
 }
