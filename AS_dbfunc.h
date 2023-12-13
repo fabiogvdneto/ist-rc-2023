@@ -67,8 +67,10 @@ int find_user_auction(char *uid, char *aid);
 
 int extract_user_auctions(char *uid, char *auctions);
 
-// talvez uma que combine a de cime e a de baixo?
-
 int extract_user_bidded_auctions(char *uid, char* bidded);
+
+int extract_auctions(char* auctions);
+
+// as três últimas talvez se possam juntar numa só
 
 #endif

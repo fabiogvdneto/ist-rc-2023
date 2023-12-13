@@ -34,7 +34,6 @@
 - implement verbose mode
 - implement fork
 - implement remaining responses:
-    - response to list command
     - response to show_asset command
     - response to show_record command
 - verify if user is already logged in when trying to log in
@@ -441,6 +440,25 @@ void response_mybids(int fd, char *uid) {
     }
 }
 
+void response_list(int fd) {
+    char auctions[BUFSIZ_L];
+    memset(auctions, 0, BUFSIZ_L);
+    int count = extract_auctions(auctions);
+    if (!count) {
+        if (sendto(fd, "RLS NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else {
+        char buffer[BUFSIZ_L+8];
+        memset(buffer, 0, BUFSIZ_L+8);
+        sprintf(buffer, "RLS OK%s\n", auctions);
+        if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR4\n");
+            return;
+        }
+    }
+}
 
 void response_bid(int fd, char *msg) {
     // Message: BID <uid> <password> <aid> <value>
@@ -590,7 +608,7 @@ void udp_command_choser(int fd) {
         char *uid = strtok(NULL, delim);
         response_mybids(fd, uid);
     } else if (!strcmp(label, "LST")) {
-        udp_send(fd, "RST OK\n");
+        response_list(fd);
     } else if (!strcmp(label, "SRC")) {
         udp_send(fd, "RRC OK\n");
     } else {

@@ -528,8 +528,6 @@ int extract_user_auctions(char *uid, char* auctions) {
     return count;
 }
 
-// talvez uma que combine a de cime e a de baixo?
-
 int extract_user_bidded_auctions(char *uid, char* bidded) {
     char dirname[60];
     sprintf(dirname, "USERS/%s/BIDDED/", uid);
@@ -553,6 +551,41 @@ int extract_user_bidded_auctions(char *uid, char* bidded) {
             aid[AUCTION_ID_LEN] = '\0';
             state = (check_auction_state(aid) == CLOSED) ? 0 : 1;
             printed = sprintf(bidded+total_printed, " %s %d", aid, state);
+            if (printed < 0) {
+                return ERROR;
+            } else {
+                total_printed += printed;
+            }
+            count++;
+        }
+        free(filelist[iter]);
+        iter++;
+    }
+    free(filelist);
+
+    return count;
+}
+
+int extract_auctions(char* auctions) {
+    struct dirent **filelist;
+    int n_entries, len;
+    char aid[AUCTION_ID_LEN+1];
+    int count = 0, state, iter = 0;
+    ssize_t total_printed = 0, printed = 0;
+
+    n_entries = scandir("AUCTIONS", &filelist, 0, alphasort);
+    if (n_entries <= 0)
+        return 0;
+    
+    while (iter < n_entries) {
+        char entry_name[256];
+        memcpy(entry_name, filelist[iter]->d_name, 256);
+        len = strlen(entry_name);
+        if (len == AUCTION_ID_LEN) {
+            memcpy(aid, entry_name, AUCTION_ID_LEN);
+            aid[AUCTION_ID_LEN] = '\0';
+            state = (check_auction_state(aid) == CLOSED) ? 0 : 1;
+            printed = sprintf(auctions+total_printed, " %s %d", aid, state);
             if (printed < 0) {
                 return ERROR;
             } else {
