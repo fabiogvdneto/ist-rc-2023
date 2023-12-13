@@ -51,13 +51,6 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
-#define NON_EXIST 2
-#define SUCCESS 1
-#define ERROR -1
-
-#define CLOSED 3
-#define OPEN 4
-
 struct sockaddr* server_addr;
 
 socklen_t server_addrlen;
@@ -91,7 +84,7 @@ void response_login(int fd, char *uid, char* pwd) {
     }
 
     int ret = find_user_dir(uid);
-    if (ret == NON_EXIST) {
+    if (ret == NOT_FOUND) {
         if (create_user_dir(uid) == ERROR) {
             printf("ERROR\n");
             return;
@@ -114,7 +107,7 @@ void response_login(int fd, char *uid, char* pwd) {
         }
     } else if (ret == SUCCESS) {
         int ret2 = find_password(uid);
-        if (ret2 == NON_EXIST) {
+        if (ret2 == NOT_FOUND) {
             create_password(uid, pwd);
             create_login(uid);
             if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
@@ -156,7 +149,7 @@ void response_logout(int fd, char *uid, char *pwd) {
     }
 
     int ret = find_user_dir(uid);
-    if (ret == NON_EXIST) {
+    if (ret == NOT_FOUND) {
         if (sendto(fd, "RLO UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
             return;
@@ -173,7 +166,7 @@ void response_logout(int fd, char *uid, char *pwd) {
                     printf("ERROR\n");
                     return;
                 }
-            } else if (ret2 == NON_EXIST) {
+            } else if (ret2 == NOT_FOUND) {
                 if (sendto(fd, "RLO NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
                     printf("ERROR\n");
                     return;
@@ -201,7 +194,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
     }
 
     int ret = find_user_dir(uid);
-    if (ret == NON_EXIST) {
+    if (ret == NOT_FOUND) {
         if (sendto(fd, "RUR UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
             return;
@@ -220,7 +213,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
                     printf("ERROR\n");
                     return;
                 }
-            } else if (ret2 == NON_EXIST) {
+            } else if (ret2 == NOT_FOUND) {
                 if (sendto(fd, "RUR NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
                     printf("ERROR\n");
                     return;
@@ -275,7 +268,7 @@ void response_open(int fd, char *msg) {
     }
 
     int ret = find_login(uid);
-    if (ret == NON_EXIST) {
+    if (ret == NOT_FOUND) {
         if (write(fd, "ROA NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
@@ -329,17 +322,17 @@ void response_close(int fd, char *msg) {
     if (ret == ERROR || ret2 == ERROR || ret3 == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NON_EXIST) {
+    } else if (ret == NOT_FOUND) {
         if (write(fd, "RCL NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret == SUCCESS && ret2 == NON_EXIST) {
+    } else if (ret == SUCCESS && ret2 == NOT_FOUND) {
         if (write(fd, "RCL EAU\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == NON_EXIST) {
+    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == NOT_FOUND) {
         if (write(fd, "RCL EOW\n", 8) == -1) {
             printf("ERROR\n");
             return;
@@ -374,7 +367,7 @@ void response_myauctions(int fd, char *uid) {
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NON_EXIST) {
+    } else if (ret == NOT_FOUND) {
         if (sendto(fd, "RMA NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
             return;
@@ -413,7 +406,7 @@ void response_mybids(int fd, char *uid) {
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NON_EXIST) {
+    } else if (ret == NOT_FOUND) {
         if (sendto(fd, "RMB NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
             return;
@@ -492,12 +485,12 @@ void response_bid(int fd, char *msg) {
     if (ret == ERROR || ret2 == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NON_EXIST) {
+    } else if (ret == NOT_FOUND) {
         if (write(fd, "RBD NLG\n", 8) == -1) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret2 == NON_EXIST) {
+    } else if (ret2 == NOT_FOUND) {
         if (write(fd, "RBD NOK\n", 8) == -1) {
             printf("ERROR\n");
             return;
@@ -533,6 +526,44 @@ void response_bid(int fd, char *msg) {
                     add_bidded(uid, aid);
                 }
             }
+        }
+    }
+}
+
+void response_show_record(int fd, char *aid) {
+    if (!validate_auction_id(aid)) {
+        if (sendto(fd, "RRC ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_auction(aid);
+    if (ret == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NOT_FOUND) {
+        if (sendto(fd, "RRC NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS) {
+        char host_uid[USER_ID_LEN+1];
+        char name[AUCTION_NAME_MAX_LEN+1];
+        char fname[FILE_NAME_MAX_LEN+1];
+        char start_value[AUCTION_VALUE_MAX_LEN+1];
+        char start_date[DATE_LEN+1];
+        char start_time[TIME_LEN+1];
+        char timeactive[AUCTION_DURATION_MAX_LEN+1];
+        extract_auction_start_info(aid, host_uid, name, 
+            fname, start_value, start_date, start_time, timeactive);
+        char buffer[BUFSIZ_L];
+        sprintf(buffer, "RRC OK %s %s %s %s %s %s %s\n", host_uid, name,
+            fname, start_value, start_date, start_time, timeactive);
+        printf("buffer: %s\n", buffer);
+        if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+            printf("ERROR\n");
+            return;
         }
     }
 }
@@ -610,7 +641,8 @@ void udp_command_choser(int fd) {
     } else if (!strcmp(label, "LST")) {
         response_list(fd);
     } else if (!strcmp(label, "SRC")) {
-        udp_send(fd, "RRC OK\n");
+        char *aid = strtok(NULL, delim);
+        response_show_record(fd, aid);
     } else {
         printf("Received unreconizable message: %s\n", buffer);
     }

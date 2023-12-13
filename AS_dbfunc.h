@@ -7,7 +7,7 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
-#define NON_EXIST 2
+#define NOT_FOUND 2
 #define SUCCESS 1
 #define ERROR -1
 
@@ -72,5 +72,8 @@ int extract_user_bidded_auctions(char *uid, char* bidded);
 int extract_auctions(char* auctions);
 
 // as três últimas talvez se possam juntar numa só
+
+int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fname,
+        char *start_value, char *start_date, char *start_time, char *timeactive);
 
 #endif
