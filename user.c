@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 199309L // struct sigaction
+#define _POSIX_C_SOURCE 200809L // struct sigaction
 
 #include <sys/types.h>
 #include <ctype.h>
@@ -1072,7 +1072,10 @@ void command_listener() {
 void handle_signals() {
     struct sigaction act;
 
-    memset(&act, 0, sizeof(act));
+    // About sigaction flags:
+    // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_RESTART;
     act.sa_handler = SIG_IGN;
 
     if (sigaction(SIGPIPE, &act, NULL) == -1) {
