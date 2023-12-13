@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L // struct sigaction
+#define _POSIX_C_SOURCE 200809L // struct sigaction, SA_RESTART
 
 #include <sys/types.h>
 #include <ctype.h>
@@ -26,16 +26,6 @@
 
 /* Misc */
 #include "utils.h"
-
-/* TODO
-
-Lembrar de usar:
-- select()
-- Timers (setsockopt()).
-- Signals (SIGSEGV, SIGINT ctrl-c, SIGCHLD server-side, SIGPIPE).
-- Um processo para cada cliente.
-- Create some tests
-*/
 
 #define INVALID_PROTOCOL_MSG "Received invalid message from auction server.\n"
 #define INVALID_USER_ID "The ID must be a 6-digit IST student number.\n"
@@ -306,18 +296,24 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_SOCKET);
     }
 
+    if (set_socket_rcvtimeout(serverfd, 2) == -1) {
+        close(serverfd);
+        printf("set_socket_rcvtimeout\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
         exit(EXIT_FAILURE);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all_bytes(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    if (write(serverfd, fdata, fsize) == -1) {
+    if (write_all_bytes(serverfd, fdata, fsize) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
@@ -327,12 +323,12 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         panic(ERROR_MMAP);
     }
     
-    if (write(serverfd, "\n", 1) == -1) {
+    if (write_all_bytes(serverfd, "\n", 1) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all_bytes(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -390,17 +386,23 @@ void command_close(char *aid) {
         panic(ERROR_SOCKET);
     }
 
+    if (set_socket_rcvtimeout(serverfd, 2) == -1) {
+        close(serverfd);
+        printf("set_socket_rcvtimeout\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all_bytes(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all_bytes(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -673,17 +675,23 @@ void command_show_asset(char *aid) {
         panic(ERROR_SOCKET);
     }
 
+    if (set_socket_rcvtimeout(serverfd, 2) == -1) {
+        close(serverfd);
+        printf("set_socket_rcvtimeout\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all_bytes(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
 
-    ssize_t received = read(serverfd, buffer, BUFSIZ_L);
+    ssize_t received = read_all_bytes(serverfd, buffer, BUFSIZ_L);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -746,7 +754,7 @@ void command_show_asset(char *aid) {
 
         to_write = (remaining > to_write) ? to_write : remaining;
 
-        ssize_t written = write(fd, fdata, to_write);
+        ssize_t written = write_all_bytes(fd, fdata, to_write);
         if (written == -1) {
             close(serverfd);
             close(fd);
@@ -755,7 +763,7 @@ void command_show_asset(char *aid) {
 
         while (remaining -= written) {
             to_write = (remaining > BUFSIZ_L) ? BUFSIZ_L : remaining;
-            to_write = read(serverfd, buffer, to_write);
+            to_write = read_all_bytes(serverfd, buffer, to_write);
             if (to_write == -1) {
                 close(serverfd);
                 close(fd);
@@ -768,14 +776,14 @@ void command_show_asset(char *aid) {
                 panic(INVALID_PROTOCOL_MSG);
             }
 
-            if ((written = write(fd, buffer, to_write)) == -1) {
+            if ((written = write_all_bytes(fd, buffer, to_write)) == -1) {
                 close(serverfd);
                 close(fd);
                 panic(ERROR_SEND_MSG);
             }
         }
 
-        if ((received = read(serverfd, buffer, BUFSIZ_S)) == -1) {
+        if ((received = read_all_bytes(serverfd, buffer, BUFSIZ_S)) == -1) {
             panic(ERROR_RECV_MSG);
         }
 
@@ -826,17 +834,23 @@ void command_bid(char *aid, char *value) {
         panic(ERROR_SOCKET);
     }
 
+    if (set_socket_rcvtimeout(serverfd, 2) == -1) {
+        close(serverfd);
+        printf("set_socket_rcvtimeout\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (connect(serverfd, server_addr, server_addrlen) == -1) {
         close(serverfd);
         panic(ERROR_CONNECT);
     }
 
-    if (write(serverfd, buffer, printed) == -1) {
+    if (write_all_bytes(serverfd, buffer, printed) == -1) {
         close(serverfd);
         panic(ERROR_SEND_MSG);
     }
     
-    ssize_t received = read(serverfd, buffer, BUFSIZ_S);
+    ssize_t received = read_all_bytes(serverfd, buffer, BUFSIZ_S);
     if (received == -1) {
         close(serverfd);
         panic(ERROR_RECV_MSG);
@@ -1073,7 +1087,7 @@ void handle_signals() {
     struct sigaction act;
 
     // About sigaction flags:
-    // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
+    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
     sigemptyset(&act.sa_mask);
     act.sa_flags = SA_RESTART;
     act.sa_handler = SIG_IGN;

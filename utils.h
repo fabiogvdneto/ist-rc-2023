@@ -26,6 +26,12 @@ int udp_socket();
 
 int tcp_socket();
 
+int set_socket_rcvtimeout(int fd, int seconds);
+
+ssize_t read_all_bytes(int fd, char *buffer, ssize_t nbytes);
+
+ssize_t write_all_bytes(int fd, char *buffer, ssize_t nbytes);
+
 int startswith(char *prefix, char *str);
 
 #endif
