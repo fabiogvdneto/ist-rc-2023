@@ -21,7 +21,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include "AS_dbfunc.h"
+#include "database.h"
 
 /* Auction Protocol */
 #include "auction.h"
