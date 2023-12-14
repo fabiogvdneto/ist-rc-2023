@@ -669,13 +669,25 @@ void udp_command_choser(int fd) {
 }
 
 void client_listener() {
-    int fd_udp = udp_socket();
-    if (bind(fd_udp, server_addr, server_addrlen)) {
+    int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd_udp == -1) {
+        perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    int fd_tcp = tcp_socket();
-    if (bind(fd_tcp, server_addr, server_addrlen)) {
+    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
+        perror("bind");
+        exit(EXIT_FAILURE);
+    }
+    
+    int fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd_tcp == -1) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(fd_tcp, server_addr, server_addrlen) == -1) {
+        perror("bind");
         exit(EXIT_FAILURE);
     }
 
@@ -698,7 +710,7 @@ void client_listener() {
             if (new_fd == -1) {
                 exit(EXIT_FAILURE);
             }
-            
+
             tcp_command_choser(new_fd);
         }
 

@@ -1,5 +1,4 @@
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -9,21 +8,6 @@
 void panic(char *str) {
     fprintf(stderr, "%s", str);
     exit(EXIT_FAILURE);
-}
-
-/* ---- Sockets ---- */
-
-int udp_socket() {
-    return socket(AF_INET, SOCK_DGRAM, 0);
-}
-
-int tcp_socket() {
-    return socket(AF_INET, SOCK_STREAM, 0);
-}
-
-int set_socket_rcvtimeout(int fd, int seconds) {
-    struct timeval timeout = { .tv_sec = seconds, .tv_usec = seconds*1000 };
-    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 }
 
 /* ---- Read & Write ---- */
