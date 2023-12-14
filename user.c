@@ -834,7 +834,7 @@ void command_show_asset(char *aid) {
         
         close(fd);
         close(serverfd);
-        printf("Download complete: %s\n", pathname);
+        printf("Download complete: %s, %ld\n", pathname, atol(fsize));
     } else if (startswith("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (startswith("ERR\n", buffer) == received) {
