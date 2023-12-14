@@ -453,6 +453,36 @@ void response_list(int fd) {
     }
 }
 
+void response_show_asset(int fd, char *msg) {
+    // Message: SAS <aid>
+    char *aid = msg + 4;
+    *(aid + AUCTION_ID_LEN) = '\0';
+
+    if (!validate_auction_id(aid)) {
+        if (write(fd, "RSA ERR\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+    int ret = find_auction(aid);
+    if (ret == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NOT_FOUND) {
+        if (write(fd, "RSA NOK\n", 8) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    } else if (ret == SUCCESS) {
+        if (write(fd, "RSA OK\n", 7) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+    }
+
+}
+
 void response_bid(int fd, char *msg) {
     // Message: BID <uid> <password> <aid> <value>
     char *uid = msg + 4;
@@ -552,33 +582,26 @@ void response_show_record(int fd, char *aid) {
     } else if (ret == SUCCESS) {
         char buffer[BUFSIZ_L];
 
-        char host_uid[USER_ID_LEN+1];
-        char name[AUCTION_NAME_MAX_LEN+1];
-        char fname[FILE_NAME_MAX_LEN+1];
-        char start_value[AUCTION_VALUE_MAX_LEN+1];
-        char start_date[DATE_LEN+1];
-        char start_time[TIME_LEN+1];
-        char timeactive[AUCTION_DURATION_MAX_LEN+1];
-        extract_auction_start_info(aid, host_uid, name, 
-            fname, start_value, start_date, start_time, timeactive);
-        printed = sprintf(buffer, "RRC OK %s %s %s %s %s %s %s", host_uid, name,
-            fname, start_value, start_date, start_time, timeactive);
+        start_info_t start_info;
+        extract_auction_start_info(aid, &start_info);
+        printed = sprintf(buffer+total_printed, "RRC OK %s %s %s %s %s %s %s", start_info.uid, start_info.name,
+            start_info.fname, start_info.value, start_info.date, start_info.time, start_info.timeactive);
         total_printed += printed;
 
-        char bidder_uid[50][USER_ID_LEN+1];
-        char bid_value[50][AUCTION_VALUE_MAX_LEN+1];
-        char bid_date[50][DATE_LEN+1];
-        char bid_time[50][TIME_LEN+1];
-        char bid_sec_time[50][AUCTION_DURATION_MAX_LEN+1];
-        int n_bids = extract_auctions_bids_info(aid, bidder_uid,
-            bid_value, bid_date, bid_time, bid_sec_time);
+        bid_info_t bids[50];
+        int n_bids = extract_auctions_bids_info(aid, bids);
         for (int i = 0; i < n_bids; i++) {
             printed = sprintf(buffer+total_printed, " B %s %s %s %s %s",
-                bidder_uid[i], bid_value[i], bid_date[i], bid_time[i], bid_sec_time[i]);
+                bids[i].uid, bids[i].value, bids[i].date, bids[i].time, bids[i].sec_time);
             total_printed += printed;
         }
 
-        sprintf(buffer+total_printed, "\n");
+        if (check_auction_state(aid) == CLOSED) {
+            end_info_t end_info;
+            extract_auction_end_info(aid, &end_info);
+            printed = sprintf(buffer+total_printed, " E %s %s %s\n", end_info.date, end_info.time, end_info.sec_time);
+        }
+
         printf("buffer: %s", buffer);
         if (send(fd, buffer, strlen(buffer), 0) == -1) {
             printf("ERROR\n");
@@ -633,7 +656,7 @@ void tcp_command_choser(int fd) {
     } else if (startswith("CLS") == 3) {
         response_close(fd, buffer);
     } else if (startswith("SAS", buffer) == 3) {
-        udp_send(fd, "RSA OK\n");
+        response_show_asset(fd, buffer);
     } else if (startswith("BID", buffer) == 3) {
         response_bid(fd, buffer);
     } else {

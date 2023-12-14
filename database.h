@@ -3,6 +3,8 @@
 
 #include <time.h>
 
+#include "auction.h"
+
 #define BUFSIZ_S 256
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
@@ -13,6 +15,30 @@
 
 #define CLOSED 3
 #define OPEN 4
+
+typedef struct {
+	char uid[USER_ID_LEN+1];
+	char name[AUCTION_NAME_MAX_LEN+1];
+	char fname[FILE_NAME_MAX_LEN+1];
+	char value[AUCTION_VALUE_MAX_LEN+1];
+	char date[DATE_LEN+1];
+	char time[TIME_LEN+1];
+	char timeactive[AUCTION_DURATION_MAX_LEN+1];
+} start_info_t;
+
+typedef struct {
+    char uid[USER_ID_LEN+1];
+    char value[AUCTION_VALUE_MAX_LEN+1];
+	char date[DATE_LEN+1];
+	char time[TIME_LEN+1];
+	char sec_time[AUCTION_DURATION_MAX_LEN+1];
+} bid_info_t;
+
+typedef struct {
+	char date[DATE_LEN+1];
+	char time[TIME_LEN+1];
+	char sec_time[AUCTION_DURATION_MAX_LEN+1];
+} end_info_t;
 
 int create_user_dir(char *uid);
 
@@ -39,7 +65,7 @@ int find_password(char *uid);
 int create_auction_dir(int next_aid);
 
 int create_start_file(int next_aid, char *uid, char *name, char *fname, 
-        char *start_value, char *timeactive);
+    char *start_value, char *timeactive);
 
 // TODO: create_asset_file
 
@@ -73,10 +99,10 @@ int extract_auctions(char* auctions);
 
 // as três últimas talvez se possam juntar numa só
 
-int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fname,
-        char *start_value, char *start_date, char *start_time, char *timeactive);
+int extract_auction_start_info(char *aid, start_info_t *start_info);
 
-int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
-        char **bid_date, char **bid_time, char **bid_sec_time);
+int extract_auctions_bids_info(char *aid, bid_info_t *bids);
+
+int extract_auction_end_info(char *aid, end_info_t *end_info);
 
 #endif

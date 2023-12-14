@@ -600,8 +600,7 @@ int extract_auctions(char* auctions) {
     return count;
 }
 
-int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fname,
-        char *start_value, char *start_date, char *start_time, char *timeactive) {
+int extract_auction_start_info(char *aid, start_info_t *start_info) {
     char start_filename[60];
     FILE *fp;
 
@@ -609,37 +608,40 @@ int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fnam
     if (!(fp = fopen(start_filename, "r"))) {
         return ERROR;
     }
-    fscanf(fp, "%s %s %s %s %s %s %s", host_uid, name, fname, 
-        start_value, timeactive, start_date, start_time);
+    fscanf(fp, "%s %s %s %s %s %s %s", start_info->uid, start_info->name, start_info->fname, 
+        start_info->value, start_info->timeactive, start_info->date, start_info->time);
     fclose(fp);
     return SUCCESS;
 }
 
-int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
-        char **bid_date, char **bid_time, char **bid_sec_time) {
+int extract_auctions_bids_info(char *aid, bid_info_t *bids) {
     char dirname[60];
     sprintf(dirname, "AUCTIONS/%s/BIDS/", aid);
-    char pathname[60];
 
     struct dirent **filelist;
-    int n_bids, len, iter = 0;
+    int n_bids = 0, len, iter = 0;
     FILE *fp;
 
     int n_entries = scandir(dirname, &filelist, 0, alphasort);
     if (n_entries <= 0) {
         return ERROR;
     }
+
+    char *fds = bids[0].time;
+    fds++;
     
+    char pathname[BUFSIZ_S+60];
     while (iter < n_entries) {
         len = strlen(filelist[iter]->d_name);
         if (len == AUCTION_VALUE_MAX_LEN + 4) { // VVVVVV.txt
-            sprintf(pathname, "%s")
-            if (!(fp = fopen(filelist[iter]->d_name, "r"))) {
+            sprintf(pathname, "%s%s", dirname, filelist[iter]->d_name);
+            if (!(fp = fopen(pathname, "r"))) {
                 return ERROR;
             }
-            fscanf(fp, "%s %s %s %s %s", bidder_uid[n_bids],
-                bid_value[n_bids], bid_date[n_bids], bid_time[n_bids], bid_sec_time[n_bids]);
+            fscanf(fp, "%s %s %s %s %s", bids[n_bids].uid, bids[n_bids].value,
+                bids[n_bids].date, bids[n_bids].time, bids[n_bids].sec_time);
             n_bids++;
+            fclose(fp);
         }
         free(filelist[iter]);
         if (n_bids == 50)
@@ -649,5 +651,17 @@ int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
     free(filelist);
 
     return n_bids;
+}
 
+int extract_auction_end_info(char *aid, end_info_t *end_info) {
+    char end_filename[60];
+    FILE *fp;
+
+    sprintf(end_filename, "AUCTIONS/%s/END_%s.txt", aid, aid);
+    if (!(fp = fopen(end_filename, "r"))) {
+        return ERROR;
+    }
+    fscanf(fp, "%s %s %s", end_info->date, end_info->time, end_info->sec_time);
+    fclose(fp);
+    return SUCCESS;
 }
