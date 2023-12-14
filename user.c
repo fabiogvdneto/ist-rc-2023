@@ -1004,26 +1004,7 @@ void handle_signals() {
     // SIGCHD (when child dies -> SIG_IGN)
 }
 
-int main(int argc, char **argv) {
-    handle_signals();
-
-    struct sockaddr_in server_addr_in;
-
-    server_addr_in.sin_family = AF_INET;
-    server_addr_in.sin_port = htons(DEFAULT_PORT);
-    server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
-
-    for (int i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], FLAG_IP)) {
-            server_addr_in.sin_addr.s_addr = inet_addr(argv[++i]);
-        } else if (!strcmp(argv[i], FLAG_PORT)) {
-            server_addr_in.sin_port = htons(atoi(argv[++i]));
-        } else {
-            printf("A sua pessoa apresenta-se néscia, encaminhe-se no sentido do orgão genital masculino.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
+void open_sockets(struct sockaddr* server_addr, socklen_t server_addrlen) {
     fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
     if (fd_tcp == -1) {
         perror("tcp socket");
@@ -1037,14 +1018,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (connect(fd_tcp, (struct sockaddr*) &server_addr_in, sizeof(server_addr_in)) == -1) {
+    if (connect(fd_tcp, server_addr, server_addrlen) == -1) {
         perror("tcp connect");
         close(fd_tcp);
         close(fd_udp);
         exit(EXIT_FAILURE);
     }
     
-    if (connect(fd_udp, (struct sockaddr*) &server_addr_in, sizeof(server_addr_in)) == -1) {
+    if (connect(fd_udp, server_addr, server_addrlen) == -1) {
         perror("udp connect");
         close(fd_tcp);
         close(fd_udp);
@@ -1065,7 +1046,29 @@ int main(int argc, char **argv) {
         close(fd_udp);
         exit(EXIT_FAILURE);
     }
+}
 
+int main(int argc, char **argv) {
+    handle_signals();
+
+    struct sockaddr_in server_addr_in;
+
+    server_addr_in.sin_family = AF_INET;
+    server_addr_in.sin_port = htons(DEFAULT_PORT);
+    server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
+
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], FLAG_IP)) {
+            server_addr_in.sin_addr.s_addr = inet_addr(argv[++i]);
+        } else if (!strcmp(argv[i], FLAG_PORT)) {
+            server_addr_in.sin_port = htons(atoi(argv[++i]));
+        } else {
+            printf("A sua pessoa apresenta-se néscia, encaminhe-se no sentido do orgão genital masculino.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    open_sockets((struct sockaddr*) &server_addr_in, sizeof(server_addr_in));
     command_listener();
     close(fd_tcp);
     close(fd_udp);
