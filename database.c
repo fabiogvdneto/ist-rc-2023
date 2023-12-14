@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -604,10 +606,10 @@ int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fnam
     FILE *fp;
 
     sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
-    if ((fp = fopen(start_filename, "r")) == NULL) {
+    if (!(fp = fopen(start_filename, "r"))) {
         return ERROR;
     }
-    fscanf(fp, "%s %s %s %s %s %s %s %*s", host_uid, name, fname, 
+    fscanf(fp, "%s %s %s %s %s %s %s", host_uid, name, fname, 
         start_value, timeactive, start_date, start_time);
     fclose(fp);
     return SUCCESS;
@@ -617,23 +619,35 @@ int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
         char **bid_date, char **bid_time, char **bid_sec_time) {
     char dirname[60];
     sprintf(dirname, "AUCTIONS/%s/BIDS/", aid);
-
-    struct dirent **filelist;
-    int n_entries, n_bids, len, iter = 0;
     char pathname[60];
 
-    n_entries = scandir(dirname, &filelist, 0, alphasort);
+    struct dirent **filelist;
+    int n_bids, len, iter = 0;
+    FILE *fp;
+
+    int n_entries = scandir(dirname, &filelist, 0, alphasort);
     if (n_entries <= 0) {
         return ERROR;
     }
-
+    
     while (iter < n_entries) {
         len = strlen(filelist[iter]->d_name);
-        if (len == AUCTION_ID_LEN) {
-            memcpy(aid, filelist[iter]->d_name, AUCTION_ID_LEN);
-            aid[AUCTION_ID_LEN] = '\0';
-
+        if (len == AUCTION_VALUE_MAX_LEN + 4) { // VVVVVV.txt
+            sprintf(pathname, "%s")
+            if (!(fp = fopen(filelist[iter]->d_name, "r"))) {
+                return ERROR;
+            }
+            fscanf(fp, "%s %s %s %s %s", bidder_uid[n_bids],
+                bid_value[n_bids], bid_date[n_bids], bid_time[n_bids], bid_sec_time[n_bids]);
+            n_bids++;
         }
+        free(filelist[iter]);
+        if (n_bids == 50)
+            break;
+        iter++;
     }
+    free(filelist);
+
+    return n_bids;
 
 }

@@ -38,9 +38,11 @@
     - response to show_record command
 - verify if user is already logged in when trying to log in - done?
 - verify if passwords match in every command where the users sends it
+- (maybe) validate read info
 */
 
 #define DEBUG 1
+#define BACKLOG 10
 
 #define PORT_FLAG "-p"
 #define VERB_FLAG "-v"
@@ -543,6 +545,8 @@ void response_bid(int fd, char *msg) {
 }
 
 void response_show_record(int fd, char *aid) {
+    ssize_t total_printed = 0, printed = 0;
+    
     if (!validate_auction_id(aid)) {
         if (sendto(fd, "RRC ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
@@ -571,16 +575,25 @@ void response_show_record(int fd, char *aid) {
         char timeactive[AUCTION_DURATION_MAX_LEN+1];
         extract_auction_start_info(aid, host_uid, name, 
             fname, start_value, start_date, start_time, timeactive);
-        sprintf(buffer, "RRC OK %s %s %s %s %s %s %s\n", host_uid, name,
+        printed = sprintf(buffer, "RRC OK %s %s %s %s %s %s %s", host_uid, name,
             fname, start_value, start_date, start_time, timeactive);
+        total_printed += printed;
 
         char bidder_uid[50][USER_ID_LEN+1];
         char bid_value[50][AUCTION_VALUE_MAX_LEN+1];
         char bid_date[50][DATE_LEN+1];
         char bid_time[50][TIME_LEN+1];
         char bid_sec_time[50][AUCTION_DURATION_MAX_LEN+1];
-        extract_auctions_bids_info(bidder_uid, bid_value, bid_date, bid_time, bid_sec_time);
-        printf("buffer: %s\n", buffer);
+        int n_bids = extract_auctions_bids_info(aid, bidder_uid,
+            bid_value, bid_date, bid_time, bid_sec_time);
+        for (int i = 0; i < n_bids; i++) {
+            printed = sprintf(buffer+total_printed, " B %s %s %s %s %s",
+                bidder_uid[i], bid_value[i], bid_date[i], bid_time[i], bid_sec_time[i]);
+            total_printed += printed;
+        }
+
+        sprintf(buffer+total_printed, "\n");
+        printf("buffer: %s", buffer);
         if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");
             return;
@@ -691,7 +704,7 @@ void client_listener() {
         exit(EXIT_FAILURE);
     }
 
-    if (listen(fd_tcp, 1) == -1) {
+    if (listen(fd_tcp, BACKLOG) == -1) {
         exit(EXIT_FAILURE);
     }
 

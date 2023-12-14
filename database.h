@@ -76,4 +76,7 @@ int extract_auctions(char* auctions);
 int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fname,
         char *start_value, char *start_date, char *start_time, char *timeactive);
 
+int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
+        char **bid_date, char **bid_time, char **bid_sec_time);
+
 #endif
