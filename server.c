@@ -649,8 +649,6 @@ void udp_command_choser(int fd) {
 }
 
 void client_listener() {
-    int new_fd, max_fd;
-
     int fd_udp = udp_socket();
     if (bind(fd_udp, server_addr, server_addrlen)) {
         exit(EXIT_FAILURE);
@@ -671,16 +669,16 @@ void client_listener() {
         FD_SET(fd_udp, &rfds);
         FD_SET(fd_tcp, &rfds);
 
-        int max_fd = fd_udp > fd_tcp ? fd_udp : fd_tcp;
-
-        if (select(max_fd + 1, &rfds, NULL, NULL, NULL) == -1) {
+        if (select(FD_SETSIZE, &rfds, NULL, NULL, NULL) == -1) {
             exit(EXIT_FAILURE);
         }
 
         if (FD_ISSET(fd_tcp, &rfds)) {
-            if ((new_fd = accept(fd_tcp, server_addr, &server_addrlen)) == -1) {
+            int new_fd = accept(fd_tcp, server_addr, &server_addrlen);
+            if (new_fd == -1) {
                 exit(EXIT_FAILURE);
             }
+            
             tcp_command_choser(new_fd);
         }
 

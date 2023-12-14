@@ -52,12 +52,25 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
+struct sockaddr *server_addr;
+socklen_t server_addrlen;
+
 int islogged = 0;
 int fd_tcp;
 int fd_udp;
 
 char user_uid[USER_ID_LEN+1];
 char user_pwd[USER_PWD_LEN+1];
+
+int open_tcp_connection() {
+    server_addr->sa_family = AF_INET;
+    return connect(fd_tcp, server_addr, server_addrlen);
+}
+
+int close_tcp_connection() {
+    server_addr->sa_family = AF_UNSPEC;
+    return connect(fd_tcp, server_addr, server_addrlen);
+}
 
 /* ---- Commands ---- */
 
@@ -277,6 +290,11 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         return;
     }
 
+    if (open_tcp_connection() == -1) {
+        perror("tcp connect");
+        return;
+    }
+
     if (write_all_bytes(fd_tcp, buffer, printed) == -1) {
         printf(ERROR_SEND_MSG);
         return;
@@ -300,6 +318,11 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     ssize_t received = read_all_bytes(fd_tcp, buffer, BUFSIZ_S);
     if (received == -1) {
         printf(ERROR_RECV_MSG);
+        return;
+    }
+
+    if (close_tcp_connection() == -1) {
+        perror("tcp connect");
         return;
     }
 
@@ -349,6 +372,11 @@ void command_close(char *aid) {
         return;
     }
 
+    if (open_tcp_connection() == -1) {
+        perror("tcp connect");
+        return;
+    }
+
     if (write_all_bytes(fd_tcp, buffer, printed) == -1) {
         printf(ERROR_SEND_MSG);
         return;
@@ -357,6 +385,11 @@ void command_close(char *aid) {
     ssize_t received = read_all_bytes(fd_tcp, buffer, BUFSIZ_S);
     if (received == -1) {
         printf(ERROR_RECV_MSG);
+        return;
+    }
+
+    if (close_tcp_connection() == -1) {
+        perror("tcp connect");
         return;
     }
 
@@ -465,20 +498,17 @@ void command_mybids() {
         return;
     }
 
-    printf("1\n");
     if (send(fd_udp, buffer, printed, 0) == -1) {
         printf(ERROR_SEND_MSG);
         return;
     }
 
-    printf("2\n");
     ssize_t received = recv(fd_udp, buffer, BUFSIZ_S, 0);
     if (received == -1) {
         printf(ERROR_RECV_MSG);
         return;
     }
 
-    printf("3\n");
     if (startswith("RMB NOK\n", buffer) == received) {
         printf("The user %s has no ongoing bids.\n", user_uid);
     } else if (startswith("RMB NLG\n", buffer) == received) {
@@ -605,6 +635,11 @@ void command_show_asset(char *aid) {
         return;
     }
 
+    if (open_tcp_connection() == -1) {
+        perror("tcp connect");
+        return;
+    }
+
     if (write_all_bytes(fd_tcp, buffer, printed) == -1) {
         printf(ERROR_SEND_MSG);
         return;
@@ -701,6 +736,11 @@ void command_show_asset(char *aid) {
             return;
         }
 
+        if (close_tcp_connection() == -1) {
+            perror("tcp connect");
+            return;
+        }
+
         if ((received != 1) || (*buffer != '\n')) {
             printf(INVALID_PROTOCOL_MSG);
             return;
@@ -741,6 +781,11 @@ void command_bid(char *aid, char *value) {
         return;
     }
 
+    if (open_tcp_connection() == -1) {
+        perror("tcp connect");
+        return;
+    }
+
     if (write_all_bytes(fd_tcp, buffer, printed) == -1) {
         printf(ERROR_SEND_MSG);
         return;
@@ -749,6 +794,11 @@ void command_bid(char *aid, char *value) {
     ssize_t received = read_all_bytes(fd_tcp, buffer, BUFSIZ_S);
     if (received == -1) {
         printf(ERROR_RECV_MSG);
+        return;
+    }
+
+    if (close_tcp_connection() == -1) {
+        perror("tcp connect");
         return;
     }
 
@@ -921,7 +971,7 @@ void command_listener() {
     printf("> ");
     while (fgets(buffer, sizeof(buffer), stdin)) {
         if (!(label = strtok(buffer, delim))) continue;
-
+        
         if (!strcmp("login", label)) {
             char *uid = strtok(NULL, delim);
             char *pwd = strtok(NULL, delim);
@@ -1004,7 +1054,7 @@ void handle_signals() {
     // SIGCHD (when child dies -> SIG_IGN)
 }
 
-void open_sockets(struct sockaddr* server_addr, socklen_t server_addrlen) {
+void open_sockets() {
     fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
     if (fd_tcp == -1) {
         perror("tcp socket");
@@ -1017,13 +1067,6 @@ void open_sockets(struct sockaddr* server_addr, socklen_t server_addrlen) {
         close(fd_tcp);
         exit(EXIT_FAILURE);
     }
-
-    if (connect(fd_tcp, server_addr, server_addrlen) == -1) {
-        perror("tcp connect");
-        close(fd_tcp);
-        close(fd_udp);
-        exit(EXIT_FAILURE);
-    }
     
     if (connect(fd_udp, server_addr, server_addrlen) == -1) {
         perror("udp connect");
@@ -1032,7 +1075,7 @@ void open_sockets(struct sockaddr* server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
-    struct timeval timeout = { .tv_sec = 2, .tv_usec = 2000 };
+    struct timeval timeout = { .tv_sec = 2, .tv_usec = 0 };
     if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
         perror("tcp setsockopt");
         close(fd_tcp);
@@ -1056,6 +1099,8 @@ int main(int argc, char **argv) {
     server_addr_in.sin_family = AF_INET;
     server_addr_in.sin_port = htons(DEFAULT_PORT);
     server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
+    server_addr = (struct sockaddr*) &server_addr_in;
+    server_addrlen = sizeof(server_addr_in);
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], FLAG_IP)) {
