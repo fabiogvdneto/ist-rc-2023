@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -54,32 +56,16 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
-struct sockaddr* server_addr;
-
-socklen_t server_addrlen;
-
 int verbose = 0;
 
 /* ---- Next Auction ID */
 int next_aid = 1;
 
-void udp_send(int fd, char *msg) {
-    size_t n = strlen(msg);
-    ssize_t res = sendto(fd, msg, n, 0, server_addr, server_addrlen);
-
-    if (res == -1) {
-        printf("Error: could not send message to server.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (DEBUG) printf("[UDP] Sent %ld/%ld bytes: %s", res, n, msg);
-}
-
 /* ---- Responses ---- */
 
 void response_login(int fd, char *uid, char* pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        if (sendto(fd, "RLI ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RLI ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -107,7 +93,7 @@ void response_login(int fd, char *uid, char* pwd) {
             printf("ERROR\n");
             return;
         }
-        if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RLI REG\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -118,7 +104,7 @@ void response_login(int fd, char *uid, char* pwd) {
             printf("ERROR\n");
             return;
         } else if (ret3 == SUCCESS) {
-            if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, "RLI NOK\n", 8, 0) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -126,7 +112,7 @@ void response_login(int fd, char *uid, char* pwd) {
             if (ret2 == NOT_FOUND) {
                 create_password(uid, pwd);
                 create_login(uid);
-                if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
+                if (send(fd, "RLI REG\n", 8, 0) == -1) {
                     printf("ERROR\n");
                     return;
                 }
@@ -139,12 +125,12 @@ void response_login(int fd, char *uid, char* pwd) {
                 extract_password(uid, ext_pwd);
                 if (!strcmp(pwd, ext_pwd)) {
                     create_login(uid);
-                    if (sendto(fd, "RLI OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                    if (send(fd, "RLI OK\n", 7, 0) == -1) {
                         printf("ERROR\n");
                         return;
                     }
                 } else {
-                    if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                    if (send(fd, "RLI NOK\n", 8, 0) == -1) {
                         printf("ERROR\n");
                         return;
                     }
@@ -156,7 +142,7 @@ void response_login(int fd, char *uid, char* pwd) {
 
 void response_logout(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        if (sendto(fd, "RLI ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RLI ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -164,7 +150,7 @@ void response_logout(int fd, char *uid, char *pwd) {
 
     int ret = find_user_dir(uid);
     if (ret == NOT_FOUND) {
-        if (sendto(fd, "RLO UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RLO UNR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -176,12 +162,12 @@ void response_logout(int fd, char *uid, char *pwd) {
             int ret2 = find_login(uid);
             if (ret2 == SUCCESS) {
                 erase_login(uid);
-                if (sendto(fd, "RLO OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                if (send(fd, "RLO OK\n", 7, 0) == -1) {
                     printf("ERROR\n");
                     return;
                 }
             } else if (ret2 == NOT_FOUND) {
-                if (sendto(fd, "RLO NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                if (send(fd, "RLO NOK\n", 8, 0) == -1) {
                     printf("ERROR\n");
                     return;
                 }
@@ -189,7 +175,7 @@ void response_logout(int fd, char *uid, char *pwd) {
                 printf("ERROR\n");
             }
         } else {
-            if (sendto(fd, "RLO ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, "RLO ERR\n", 8, 0) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -201,7 +187,7 @@ void response_logout(int fd, char *uid, char *pwd) {
 
 void response_unregister(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        if (sendto(fd, "RUR ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RUR ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -209,7 +195,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
 
     int ret = find_user_dir(uid);
     if (ret == NOT_FOUND) {
-        if (sendto(fd, "RUR UNR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RUR UNR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -223,12 +209,12 @@ void response_unregister(int fd, char *uid, char *pwd) {
             if (ret2 == SUCCESS) {
                 erase_password(uid);
                 erase_login(uid);
-                if (sendto(fd, "RUR OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                if (send(fd, "RUR OK\n", 7, 0) == -1) {
                     printf("ERROR\n");
                     return;
                 }
             } else if (ret2 == NOT_FOUND) {
-                if (sendto(fd, "RUR NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                if (send(fd, "RUR NOK\n", 8, 0) == -1) {
                     printf("ERROR\n");
                     return;
                 }
@@ -236,7 +222,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
                 printf("ERROR\n");
             }
         } else {
-            if (sendto(fd, "RUR ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, "RUR ERR\n", 8, 0) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -371,7 +357,7 @@ void response_close(int fd, char *msg) {
 
 void response_myauctions(int fd, char *uid) {
     if (!validate_user_id(uid)) {
-        if (sendto(fd, "RMA ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RMA ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -382,7 +368,7 @@ void response_myauctions(int fd, char *uid) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
-        if (sendto(fd, "RMA NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RMA NLG\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -391,7 +377,7 @@ void response_myauctions(int fd, char *uid) {
         memset(auctions, 0, BUFSIZ_L);
         int count = extract_user_auctions(uid, auctions);
         if (!count) {
-            if (sendto(fd, "RMA NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, "RMA NOK\n", 8, 0) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -399,7 +385,7 @@ void response_myauctions(int fd, char *uid) {
             char buffer[BUFSIZ_L+8];
             memset(buffer, 0, BUFSIZ_L+8);
             sprintf(buffer, "RMA OK%s\n", auctions);
-            if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, buffer, strlen(buffer), 0) == -1) {
                 printf("ERROR4\n");
                 return;
             }
@@ -410,7 +396,7 @@ void response_myauctions(int fd, char *uid) {
 
 void response_mybids(int fd, char *uid) {
     if (!validate_user_id(uid)) {
-        if (sendto(fd, "RMB ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RMB ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -421,7 +407,7 @@ void response_mybids(int fd, char *uid) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
-        if (sendto(fd, "RMB NLG\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RMB NLG\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -430,7 +416,7 @@ void response_mybids(int fd, char *uid) {
         memset(auctions, 0, BUFSIZ_L);
         int count = extract_user_bidded_auctions(uid, auctions);
         if (!count) {
-            if (sendto(fd, "RMB NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, "RMB NOK\n", 8, 0) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -438,7 +424,7 @@ void response_mybids(int fd, char *uid) {
             char buffer[BUFSIZ_L+8];
             memset(buffer, 0, BUFSIZ_L+8);
             sprintf(buffer, "RMB OK%s\n", auctions);
-            if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+            if (send(fd, buffer, strlen(buffer), 0) == -1) {
                 printf("ERROR4\n");
                 return;
             }
@@ -452,7 +438,7 @@ void response_list(int fd) {
     memset(auctions, 0, BUFSIZ_L);
     int count = extract_auctions(auctions);
     if (!count) {
-        if (sendto(fd, "RLS NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RLS NOK\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -460,7 +446,7 @@ void response_list(int fd) {
         char buffer[BUFSIZ_L+8];
         memset(buffer, 0, BUFSIZ_L+8);
         sprintf(buffer, "RLS OK%s\n", auctions);
-        if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, buffer, strlen(buffer), 0) == -1) {
             printf("ERROR4\n");
             return;
         }
@@ -548,7 +534,7 @@ void response_show_record(int fd, char *aid) {
     ssize_t total_printed = 0, printed = 0;
     
     if (!validate_auction_id(aid)) {
-        if (sendto(fd, "RRC ERR\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RRC ERR\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -559,7 +545,7 @@ void response_show_record(int fd, char *aid) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
-        if (sendto(fd, "RRC NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, "RRC NOK\n", 8, 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -594,7 +580,7 @@ void response_show_record(int fd, char *aid) {
 
         sprintf(buffer+total_printed, "\n");
         printf("buffer: %s", buffer);
-        if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
+        if (send(fd, buffer, strlen(buffer), 0) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -611,77 +597,119 @@ void extract_label(char *command, char *label, int n) {
     *label = '\0';
 }
 
+void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrlen) {
+    char host[BUFSIZ_S];
+    char serv[BUFSIZ_S];
+    if (getnameinfo(addr, addrlen, host, BUFSIZ_S, serv, BUFSIZ_S, NI_NUMERICSERV | NI_NUMERICSERV) == -1) {
+        return;
+    }
+
+    printf("[Verbose] Received %s from address %s:%s", type, host, serv);
+    
+    if (uid) {
+        printf(" (user %s)\n", uid);
+    } else {
+        printf("\n");
+    }
+}
+
 void tcp_command_choser(int fd) {
-    char *label;
     char buffer[BUFSIZ_L];
     memset(buffer, 0, BUFSIZ_L);
     ssize_t received = read(fd, buffer, BUFSIZ_L);
     if (received == -1) {
-        printf("ERROR: %s.\n", strerror(errno));
+        perror("read");
         return;
     }
-    // TODO: fix not printing the buffer
-    printf("[TCP] Received: %s", buffer);
-    // TODO: validar formato da mensagem recebida
-    // e enviar "ERR" se estiver errado
-    label = buffer;
-    *(label+3) = '\0';
-    if (!strcmp(label, "OPA")) {
+    
+    int invalid = 0;
+    if (startswith("OPA", buffer) == 3) {
+        char *pwd = strchr(buffer, ' ');
+        if (pwd == NULL) {
+            invalid = 1;
+        }
+
         response_open(fd, buffer);
-    } else if (!strcmp(label, "CLS")) {
+    } else if (startswith("CLS") == 3) {
         response_close(fd, buffer);
-    } else if (!strcmp(label, "SAS")) {
+    } else if (startswith("SAS", buffer) == 3) {
         udp_send(fd, "RSA OK\n");
-    } else if (!strcmp(label, "BID")) {
+    } else if (startswith("BID", buffer) == 3) {
         response_bid(fd, buffer);
     } else {
-        printf("Received unreconizable message: %s\n", buffer);
+        write_all_bytes(fd, "ERR\n", 4);
     }
 }
 
 void udp_command_choser(int fd) {
-    char *label, *delim = " \n";
+    struct sockaddr *client_addr;
+    socklen_t client_addrlen;
+
     char buffer[BUFSIZ_S];
-    memset(buffer, 0, BUFSIZ_S);
-    ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, server_addr, &server_addrlen);
+    ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, client_addr, &client_addrlen);
     if (received == -1) {
-        printf("ERROR: %s.\n", strerror(errno));
+        perror("recvfrom");
         return;
-    } 
-    printf("[UDP] Received: %s", buffer);
-    // TODO: validar formato da mensagem recebida
-    // e enviar "ERR" se estiver errado
-    if (!(label = strtok(buffer, delim))) {}
+    }
+
+    printf("[UDP] Received %ld bytes.\n", received);
+
+    if (connect(fd, client_addr, client_addrlen) == -1) {
+        perror("connect");
+        return;
+    }
+
+    if (!validate_protocol_message(buffer, received)) {
+        send(fd, "ERR\n", 4, 0);
+        return;
+    }
+
+    buffer[received-1] = '\0';
+    
+    char *delim = " \n";
+    char *label = strtok(buffer,delim);
+    if (!label) {
+        send(fd, "ERR\n", 4, 0);
+        return;
+    }
     
     if (!strcmp(label, "LIN")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
+        print_verbose(uid, label, client_addr, client_addrlen);
         response_login(fd, uid, pwd);
     } else if (!strcmp(label, "LOU")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
+        print_verbose(uid, label, client_addr, client_addrlen);
         response_logout(fd, uid, pwd);
     } else if (!strcmp(label, "UNR")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
+        print_verbose(uid, label, client_addr, client_addrlen);
         response_unregister(fd, uid, pwd);
     } else if (!strcmp(label, "LMA")) {
         char *uid = strtok(NULL, delim);
+        print_verbose(uid, label, client_addr, client_addrlen);
         response_myauctions(fd, uid); 
     } else if (!strcmp(label, "LMB")) {
         char *uid = strtok(NULL, delim);
+        print_verbose(uid, label, client_addr, client_addrlen);
         response_mybids(fd, uid);
     } else if (!strcmp(label, "LST")) {
+        print_verbose(NULL, label, client_addr, client_addrlen);
         response_list(fd);
     } else if (!strcmp(label, "SRC")) {
         char *aid = strtok(NULL, delim);
+        print_verbose(NULL, label, client_addr, client_addrlen);
         response_show_record(fd, aid);
     } else {
-        printf("Received unreconizable message: %s\n", buffer);
+        print_verbose(NULL, label, client_addr, client_addrlen);
+        send(fd, "ERR\n", 4, 0);
     }
 }
 
-void client_listener() {
+void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
     int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd_udp == -1) {
         perror("socket");
@@ -715,13 +743,15 @@ void client_listener() {
         FD_SET(fd_tcp, &rfds);
 
         if (select(FD_SETSIZE, &rfds, NULL, NULL, NULL) == -1) {
-            exit(EXIT_FAILURE);
+            perror("select");
+            break;
         }
 
         if (FD_ISSET(fd_tcp, &rfds)) {
-            int new_fd = accept(fd_tcp, server_addr, &server_addrlen);
+            int new_fd = accept(fd_tcp, NULL, NULL);
             if (new_fd == -1) {
-                exit(EXIT_FAILURE);
+                perror("accept");
+                break;
             }
 
             tcp_command_choser(new_fd);
@@ -745,8 +775,6 @@ int main(int argc, char **argv) {
     server_addr_in.sin_family = AF_INET;
     server_addr_in.sin_port = htons(DEFAULT_PORT);
     server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
-    server_addr = (struct sockaddr*) &server_addr_in;
-    server_addrlen = sizeof(server_addr_in);
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], VERB_FLAG)) {
@@ -768,5 +796,5 @@ int main(int argc, char **argv) {
     }
 
     next_aid = update_next_aid();
-    client_listener();
+    client_listener((struct sockaddr*) &server_addr_in, sizeof(server_addr_in));
 }
