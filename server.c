@@ -32,14 +32,17 @@
 #include "utils.h"
 
 /* Roadmap (server.c) 
-- implement function to create asset file
+- test asset related functions
 - implement verbose mode
 - implement fork
-- implement remaining responses:
-    - response to show_asset command
-    - response to show_record command
 - verify if user is already logged in when trying to log in - done?
-- verify if passwords match in every command where the users sends it
+- verify if passwords match in every command where the users sends it:
+    - login
+    - logout
+    - unregister
+    - open
+    - close
+    - bid
 - (maybe) validate read info
 */
 
@@ -232,7 +235,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
     }
 }
 
-void response_open(int fd, char *msg) {
+void response_open(int fd, char *msg, ssize_t received) {
     // Message: OPA <uid> <password> <name> <start_value> <timeactive> <fname> <fzise> <fdata>
     char *uid = msg + 4;
 
@@ -254,8 +257,8 @@ void response_open(int fd, char *msg) {
     char *fsize = strchr(fname, ' ');
     *fsize++ = '\0';
 
-    char *fdata = strchr(fsize, ' ');
-    *fdata++ = '\0';
+    char *first_bytes = strchr(fsize, ' ');
+    *first_bytes++ = '\0';
 
     if (!validate_user_id(uid) || !validate_user_password(pwd) ||
      !validate_auction_name(name) || !validate_auction_value(start_value) ||
@@ -279,7 +282,12 @@ void response_open(int fd, char *msg) {
         create_auction_dir(next_aid);
         create_start_file(next_aid, uid, name, fname, start_value, timeactive);
         add_user_auction(next_aid, uid);
-        // TODO: call create_asset_file());
+
+        ssize_t remaining = atol(fsize);
+        ssize_t to_write = (msg + received) - first_bytes;
+        to_write = (remaining > to_write) ? to_write : remaining;
+        create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
+
         char buffer[BUFSIZ_S];
         int printed;
         if ((printed = sprintf(buffer, "ROA OK %03d\n", next_aid)) == -1) {
@@ -475,6 +483,11 @@ void response_show_asset(int fd, char *msg) {
             return;
         }
     } else if (ret == SUCCESS) {
+        char fname[FILE_NAME_MAX_LEN+1];
+        off_t fsize = 0;
+        get_asset_file_info(aid, fname, &fsize);
+        send_asset_file(fd, fname, fsize);
+
         if (write(fd, "RSA OK\n", 7) == -1) {
             printf("ERROR\n");
             return;
@@ -646,7 +659,7 @@ void tcp_command_choser(int fd) {
     }
     
     if (startswith("OPA", buffer) == 3) {
-        response_open(fd, buffer);
+        response_open(fd, buffer, received);
     } else if (startswith("CLS", buffer) == 3) {
         response_close(fd, buffer);
     } else if (startswith("SAS", buffer) == 3) {
@@ -659,11 +672,12 @@ void tcp_command_choser(int fd) {
 }
 
 void udp_command_choser(int fd) {
-    struct sockaddr *client_addr;
-    socklen_t client_addrlen;
+    struct sockaddr client_addr;
+    client_addr.sa_family = AF_UNSPEC;
+    socklen_t client_addrlen = sizeof(client_addr);
 
     char buffer[BUFSIZ_S];
-    ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, client_addr, &client_addrlen);
+    ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, &client_addr, &client_addrlen);
     if (received == -1) {
         perror("recvfrom");
         return;
@@ -671,7 +685,7 @@ void udp_command_choser(int fd) {
 
     printf("[UDP] Received %ld bytes.\n", received);
 
-    if (connect(fd, client_addr, client_addrlen) == -1) {
+    if (connect(fd, &client_addr, client_addrlen) == -1) {
         perror("connect");
         return;
     }
@@ -693,35 +707,35 @@ void udp_command_choser(int fd) {
     if (!strcmp(label, "LIN")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        print_verbose(uid, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
         response_login(fd, uid, pwd);
     } else if (!strcmp(label, "LOU")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        print_verbose(uid, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
         response_logout(fd, uid, pwd);
     } else if (!strcmp(label, "UNR")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        print_verbose(uid, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
         response_unregister(fd, uid, pwd);
     } else if (!strcmp(label, "LMA")) {
         char *uid = strtok(NULL, delim);
-        print_verbose(uid, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
         response_myauctions(fd, uid); 
     } else if (!strcmp(label, "LMB")) {
         char *uid = strtok(NULL, delim);
-        print_verbose(uid, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
         response_mybids(fd, uid);
     } else if (!strcmp(label, "LST")) {
-        print_verbose(NULL, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
         response_list(fd);
     } else if (!strcmp(label, "SRC")) {
         char *aid = strtok(NULL, delim);
-        print_verbose(NULL, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
         response_show_record(fd, aid);
     } else {
-        print_verbose(NULL, label, client_addr, client_addrlen);
+        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
         send(fd, "ERR\n", 4, 0);
     }
 }

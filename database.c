@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/sendfile.h>
 
 /* Files */
 #include <sys/mman.h>
@@ -18,6 +19,7 @@
 #include "database.h"
 
 #include "auction.h"
+#include "utils.h"
 
 int create_user_dir(char *uid) {
     char uid_dirname[60];
@@ -92,9 +94,6 @@ int erase_user_dir(char *uid) {
     return SUCCESS;
 }
 
-// 2 -> não existe diretoria
-// 1 -> existe diretoria
-// 0 -> erro
 int find_user_dir(char *uid) {
     char uid_dirname[60];
     FILE *fp;
@@ -132,9 +131,6 @@ int erase_login(char *uid) {
     return SUCCESS;
 }
 
-// 2 -> não existe ficheiro de login
-// 1 -> existe ficheiro de login
-// 0 -> erro
 int find_login(char *uid) {
     if (find_user_dir(uid) == NOT_FOUND) {
         return NOT_FOUND;
@@ -193,9 +189,6 @@ int erase_password(char *uid) {
     return SUCCESS;
 }
 
-// 2 -> não existe ficheiro de password
-// 1 -> existe ficheiro de password
-// 0 -> erro
 int find_password(char *uid) {
     if (find_user_dir(uid) == NOT_FOUND) {
         return NOT_FOUND;
@@ -266,7 +259,72 @@ int create_start_file(int next_aid, char *uid, char *name, char *fname, char *st
     return SUCCESS;
 }
 
-// TODO: create_asset_file
+int create_asset_file(int next_aid, int fd, char *fname, off_t fsize, char *first_bytes, ssize_t to_write) {
+    char asset_filename[60];
+    sprintf(asset_filename, "AUCTIONS/%03d/ASSET/%s", next_aid, fname);
+
+    int asset_fd = open(asset_filename, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
+    if (fd == -1) {
+        return ERROR;
+    }
+
+    ssize_t written = write_all_bytes(asset_fd, first_bytes, to_write);
+    fsize -= written;
+    char buffer[BUFSIZ_S];
+    while (read_all_bytes(fd, buffer, BUFSIZ_S) > 0) {
+        written = write_all_bytes(asset_fd, buffer, BUFSIZ_S);
+        fsize -= written;
+        if (fsize == 0)
+            break;
+    }
+
+    close(asset_fd);
+    return SUCCESS;
+}
+
+int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
+    char asset_dirname[60];
+    sprintf(asset_dirname, "AUCTIONS/%s/ASSET/", aid);
+
+    DIR *d = opendir(asset_dirname);
+    struct dirent *p;
+    while ((p = readdir(d))) {
+        if (validate_file_name(p->d_name) < 5) {
+            continue;
+        }
+        strcpy(fname, p->d_name);
+        break;
+    }
+    closedir(d);
+
+    int asset_fd = open(fname, O_RDONLY);
+    if (asset_fd == -1) {
+        return ERROR;
+    }
+
+    struct stat statbuf;
+    if (fstat(asset_fd, &statbuf) == -1) {
+        close(asset_fd);
+        return ERROR;
+    }
+    *fsize = statbuf.st_size;
+
+    close(asset_fd);
+    return SUCCESS;
+}
+
+int send_asset_file(int fd, char* fname, off_t fsize) {
+    int asset_fd = open(fname, O_RDONLY);
+    if (asset_fd == -1) {
+        return ERROR;
+    }
+
+    if ((sendfile(fd, asset_fd, NULL, fsize)) == -1) {
+        return ERROR;
+    }
+
+    return SUCCESS;
+}
 
 int add_user_auction(int next_aid, char *uid) {
     char user_auction_name[60];
