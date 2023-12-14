@@ -100,7 +100,7 @@ int find_user_dir(char *uid) {
     sprintf(uid_dirname, "USERS/%s", uid);
     if ((fp = fopen(uid_dirname, "r")) == NULL) {
         if (errno == ENOENT) {
-            return NON_EXIST;
+            return NOT_FOUND;
         } else {
             return ERROR;
         }
@@ -134,8 +134,8 @@ int erase_login(char *uid) {
 // 1 -> existe ficheiro de login
 // 0 -> erro
 int find_login(char *uid) {
-    if (find_user_dir(uid) == NON_EXIST) {
-        return NON_EXIST;
+    if (find_user_dir(uid) == NOT_FOUND) {
+        return NOT_FOUND;
     }
 
     char login_name[60];
@@ -144,7 +144,7 @@ int find_login(char *uid) {
     sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
     if ((fp = fopen(login_name, "r")) == NULL) {
         if (errno == ENOENT) {
-            return NON_EXIST;
+            return NOT_FOUND;
         } else {
             return ERROR;
         }
@@ -195,8 +195,8 @@ int erase_password(char *uid) {
 // 1 -> existe ficheiro de password
 // 0 -> erro
 int find_password(char *uid) {
-    if (find_user_dir(uid) == NON_EXIST) {
-        return NON_EXIST;
+    if (find_user_dir(uid) == NOT_FOUND) {
+        return NOT_FOUND;
     }
 
     char password_name[60];
@@ -205,7 +205,7 @@ int find_password(char *uid) {
     sprintf(password_name, "USERS/%s/%s_pass.txt", uid, uid);
     if ((fp = fopen(password_name, "r")) == NULL) {
         if (errno == ENOENT) {
-            return NON_EXIST;
+            return NOT_FOUND;
         } else {
             return ERROR;
         }
@@ -320,7 +320,7 @@ int find_auction(char *aid) {
     }
 
     closedir(d);
-    return NON_EXIST;
+    return NOT_FOUND;
 }
 
 int find_end(char *aid) {
@@ -330,7 +330,7 @@ int find_end(char *aid) {
     sprintf(end_name, "AUCTIONS/%s/END_%s.txt", aid, aid);
     if ((fp = fopen(end_name, "r")) == NULL) {
         if (errno == ENOENT) {
-            return NON_EXIST;
+            return NOT_FOUND;
         } else {
             return ERROR;
         }
@@ -372,7 +372,7 @@ long get_max_bid_value(char *aid) {
 
     DIR *d = opendir(dirname);
     struct dirent *p = readdir(d);
-    char bid_value_str[AUCTION_VALUE_LEN];
+    char bid_value_str[AUCTION_VALUE_MAX_LEN];
     long max_bid_value = 0, bid_value, start_value = 0;
     int count = 0;
 
@@ -380,7 +380,7 @@ long get_max_bid_value(char *aid) {
         if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
             continue;
         }
-        memcpy(bid_value_str, p->d_name, AUCTION_VALUE_LEN);
+        memcpy(bid_value_str, p->d_name, AUCTION_VALUE_MAX_LEN);
         bid_value = atol(bid_value_str);
         if (bid_value > max_bid_value) {
             max_bid_value = bid_value;
@@ -487,7 +487,7 @@ int find_user_auction(char *uid, char *aid) {
     }
 
     closedir(d);
-    return NON_EXIST;
+    return NOT_FOUND;
 }
 
 int extract_user_auctions(char *uid, char* auctions) {
@@ -599,4 +599,19 @@ int extract_auctions(char* auctions) {
     free(filelist);
 
     return count;
+}
+
+int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fname,
+        char *start_value, char *start_date, char *start_time, char *timeactive) {
+    char start_filename[60];
+    FILE *fp;
+
+    sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
+    if ((fp = fopen(start_filename, "r")) == NULL) {
+        return ERROR;
+    }
+    fscanf(fp, "%s %s %s %s %s %s %s %*s", host_uid, name, fname, 
+        start_value, timeactive, start_date, start_time);
+    fclose(fp);
+    return SUCCESS;
 }

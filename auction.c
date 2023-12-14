@@ -106,7 +106,7 @@ int validate_auction_duration(char *str) {
 int validate_auction_value(char *str) {
     if (!str) return 0;
 
-    for (int i = 0; i <= AUCTION_VALUE_LEN; i++, str++) {
+    for (int i = 0; i <= AUCTION_VALUE_MAX_LEN; i++, str++) {
         if (!isdigit(*str)) {
             return (*str == '\0');
         }
