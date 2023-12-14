@@ -13,7 +13,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include "AS_dbfunc.h"
+#include "database.h"
 
 #include "auction.h"
 
