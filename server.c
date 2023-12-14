@@ -645,15 +645,9 @@ void tcp_command_choser(int fd) {
         return;
     }
     
-    int invalid = 0;
     if (startswith("OPA", buffer) == 3) {
-        char *pwd = strchr(buffer, ' ');
-        if (pwd == NULL) {
-            invalid = 1;
-        }
-
         response_open(fd, buffer);
-    } else if (startswith("CLS") == 3) {
+    } else if (startswith("CLS", buffer) == 3) {
         response_close(fd, buffer);
     } else if (startswith("SAS", buffer) == 3) {
         response_show_asset(fd, buffer);
