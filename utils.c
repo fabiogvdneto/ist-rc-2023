@@ -1,6 +1,3 @@
-#ifndef _UTILS_H_
-#define _UTILS_H_
-
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <stdio.h>
@@ -68,5 +65,3 @@ int startswith(char *prefix, char *str) {
     while (*prefix && (*prefix++ == *str++));
     return (str - start);
 }
-
-#endif

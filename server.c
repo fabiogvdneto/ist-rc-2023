@@ -36,7 +36,8 @@
 - implement remaining responses:
     - response to show_asset command
     - response to show_record command
-- verify if user is already logged in when trying to log in
+- verify if user is already logged in when trying to log in - done?
+- verify if passwords match in every command where the users sends it
 */
 
 #define DEBUG 1
@@ -84,7 +85,10 @@ void response_login(int fd, char *uid, char* pwd) {
     }
 
     int ret = find_user_dir(uid);
-    if (ret == NOT_FOUND) {
+    if (ret == ERROR) {
+        printf("ERROR\n");
+        return;
+    } else if (ret == NOT_FOUND) {
         if (create_user_dir(uid) == ERROR) {
             printf("ERROR\n");
             return;
@@ -107,36 +111,44 @@ void response_login(int fd, char *uid, char* pwd) {
         }
     } else if (ret == SUCCESS) {
         int ret2 = find_password(uid);
-        if (ret2 == NOT_FOUND) {
-            create_password(uid, pwd);
-            create_login(uid);
-            if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
+        int ret3 = find_login(uid);
+        if (ret3 == ERROR) {
+            printf("ERROR\n");
+            return;
+        } else if (ret3 == SUCCESS) {
+            if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
                 printf("ERROR\n");
                 return;
             }
-            return;
-        } else if (ret2 == ERROR) {
-            printf("ERROR\n");
-            return;
-        } else if (ret2 == SUCCESS) {
-            // TODO: verificar se o user já está logged in?
-            char ext_pwd[USER_PWD_LEN];
-            extract_password(uid, ext_pwd);
-            if (!strcmp(pwd, ext_pwd)) {
+        } else if (ret3 == NOT_FOUND) {
+            if (ret2 == NOT_FOUND) {
+                create_password(uid, pwd);
                 create_login(uid);
-                if (sendto(fd, "RLI OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                if (sendto(fd, "RLI REG\n", 8, 0, server_addr, server_addrlen) == -1) {
                     printf("ERROR\n");
                     return;
                 }
-            } else {
-                if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
-                    printf("ERROR\n");
-                    return;
+                return;
+            } else if (ret2 == ERROR) {
+                printf("ERROR\n");
+                return;
+            } else if (ret2 == SUCCESS) {
+                char ext_pwd[USER_PWD_LEN];
+                extract_password(uid, ext_pwd);
+                if (!strcmp(pwd, ext_pwd)) {
+                    create_login(uid);
+                    if (sendto(fd, "RLI OK\n", 7, 0, server_addr, server_addrlen) == -1) {
+                        printf("ERROR\n");
+                        return;
+                    }
+                } else {
+                    if (sendto(fd, "RLI NOK\n", 8, 0, server_addr, server_addrlen) == -1) {
+                        printf("ERROR\n");
+                        return;
+                    }
                 }
             }
         }
-    } else if (ret == ERROR) {
-        printf("ERROR\n");
     }
 }
 
@@ -548,6 +560,8 @@ void response_show_record(int fd, char *aid) {
             return;
         }
     } else if (ret == SUCCESS) {
+        char buffer[BUFSIZ_L];
+
         char host_uid[USER_ID_LEN+1];
         char name[AUCTION_NAME_MAX_LEN+1];
         char fname[FILE_NAME_MAX_LEN+1];
@@ -557,9 +571,15 @@ void response_show_record(int fd, char *aid) {
         char timeactive[AUCTION_DURATION_MAX_LEN+1];
         extract_auction_start_info(aid, host_uid, name, 
             fname, start_value, start_date, start_time, timeactive);
-        char buffer[BUFSIZ_L];
         sprintf(buffer, "RRC OK %s %s %s %s %s %s %s\n", host_uid, name,
             fname, start_value, start_date, start_time, timeactive);
+
+        char bidder_uid[50][USER_ID_LEN+1];
+        char bid_value[50][AUCTION_VALUE_MAX_LEN+1];
+        char bid_date[50][DATE_LEN+1];
+        char bid_time[50][TIME_LEN+1];
+        char bid_sec_time[50][AUCTION_DURATION_MAX_LEN+1];
+        extract_auctions_bids_info(bidder_uid, bid_value, bid_date, bid_time, bid_sec_time);
         printf("buffer: %s\n", buffer);
         if (sendto(fd, buffer, strlen(buffer), 0, server_addr, server_addrlen) == -1) {
             printf("ERROR\n");

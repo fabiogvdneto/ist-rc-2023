@@ -502,7 +502,7 @@ int extract_user_auctions(char *uid, char* auctions) {
 
     n_entries = scandir(dirname, &filelist, 0, alphasort);
     if (n_entries <= 0)
-        return 0;
+        return ERROR;
     
     while (iter < n_entries) {
         char entry_name[256];
@@ -540,7 +540,7 @@ int extract_user_bidded_auctions(char *uid, char* bidded) {
 
     n_entries = scandir(dirname, &filelist, 0, alphasort);
     if (n_entries <= 0)
-        return 0;
+        return ERROR;
     
     while (iter < n_entries) {
         char entry_name[256];
@@ -568,21 +568,18 @@ int extract_user_bidded_auctions(char *uid, char* bidded) {
 
 int extract_auctions(char* auctions) {
     struct dirent **filelist;
-    int n_entries, len;
+    int n_entries, len, count = 0, state, iter = 0;
     char aid[AUCTION_ID_LEN+1];
-    int count = 0, state, iter = 0;
     ssize_t total_printed = 0, printed = 0;
 
     n_entries = scandir("AUCTIONS", &filelist, 0, alphasort);
     if (n_entries <= 0)
-        return 0;
+        return ERROR;
     
     while (iter < n_entries) {
-        char entry_name[256];
-        memcpy(entry_name, filelist[iter]->d_name, 256);
-        len = strlen(entry_name);
+        len = strlen(filelist[iter]->d_name);
         if (len == AUCTION_ID_LEN) {
-            memcpy(aid, entry_name, AUCTION_ID_LEN);
+            memcpy(aid, filelist[iter]->d_name, AUCTION_ID_LEN);
             aid[AUCTION_ID_LEN] = '\0';
             state = (check_auction_state(aid) == CLOSED) ? 0 : 1;
             printed = sprintf(auctions+total_printed, " %s %d", aid, state);
@@ -614,4 +611,29 @@ int extract_auction_start_info(char *aid, char *host_uid, char *name, char *fnam
         start_value, timeactive, start_date, start_time);
     fclose(fp);
     return SUCCESS;
+}
+
+int extract_auctions_bids_info(char *aid, char **bidder_uid, char **bid_value,
+        char **bid_date, char **bid_time, char **bid_sec_time) {
+    char dirname[60];
+    sprintf(dirname, "AUCTIONS/%s/BIDS/", aid);
+
+    struct dirent **filelist;
+    int n_entries, n_bids, len, iter = 0;
+    char pathname[60];
+
+    n_entries = scandir(dirname, &filelist, 0, alphasort);
+    if (n_entries <= 0) {
+        return ERROR;
+    }
+
+    while (iter < n_entries) {
+        len = strlen(filelist[iter]->d_name);
+        if (len == AUCTION_ID_LEN) {
+            memcpy(aid, filelist[iter]->d_name, AUCTION_ID_LEN);
+            aid[AUCTION_ID_LEN] = '\0';
+
+        }
+    }
+
 }
