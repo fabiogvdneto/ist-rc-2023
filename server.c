@@ -689,7 +689,6 @@ void client_listener() {
         }
     }
 
-    close(max_fd);
     close(fd_udp);
     close(fd_tcp);
 
