@@ -656,14 +656,6 @@ void response_show_record(int fd, char *aid) {
 
 /* ---- Client Listener ---- */
 
-void extract_label(char *command, char *label, int n) {
-    for (int i = 1; (i < n) && (*command != ' ') && (*command != '\n'); i++) {
-        *(label++) = *(command++);
-    }
-
-    *label = '\0';
-}
-
 void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrlen) {
     if (!verbose)
         return;
