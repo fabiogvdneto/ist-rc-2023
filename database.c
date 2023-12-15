@@ -271,11 +271,10 @@ int create_asset_file(int next_aid, int fd, char *fname, off_t fsize, char *firs
     ssize_t written = write_all_bytes(asset_fd, first_bytes, to_write);
     fsize -= written;
     char buffer[BUFSIZ_S];
-    while (read_all_bytes(fd, buffer, BUFSIZ_S) > 0) {
+    while (fsize) {
+        read_all_bytes(fd, buffer, BUFSIZ_S);
         written = write_all_bytes(asset_fd, buffer, BUFSIZ_S);
         fsize -= written;
-        if (fsize == 0)
-            break;
     }
 
     close(asset_fd);

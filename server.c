@@ -287,6 +287,7 @@ void response_open(int fd, char *msg, ssize_t received) {
         ssize_t to_write = (msg + received) - first_bytes;
         to_write = (remaining > to_write) ? to_write : remaining;
         create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
+        printf("passa\n");
 
         char buffer[BUFSIZ_S];
         int printed;
@@ -294,7 +295,9 @@ void response_open(int fd, char *msg, ssize_t received) {
             printf("ERROR in sprintf\n");
             return;
         }
-        if (write(fd, buffer, printed) == -1) {
+        printf("%s", buffer);
+        printf("%ld\n", printed);
+        if (write_all_bytes(fd, buffer, printed) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -634,6 +637,9 @@ void extract_label(char *command, char *label, int n) {
 }
 
 void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrlen) {
+    if (!verbose)
+        return;
+
     char host[BUFSIZ_S];
     char serv[BUFSIZ_S];
     if (getnameinfo(addr, addrlen, host, BUFSIZ_S, serv, BUFSIZ_S, NI_NUMERICSERV | NI_NUMERICSERV) == -1) {
@@ -673,7 +679,6 @@ void tcp_command_choser(int fd) {
 
 void udp_command_choser(int fd) {
     struct sockaddr client_addr;
-    client_addr.sa_family = AF_UNSPEC;
     socklen_t client_addrlen = sizeof(client_addr);
 
     char buffer[BUFSIZ_S];
@@ -738,6 +743,13 @@ void udp_command_choser(int fd) {
         if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
         send(fd, "ERR\n", 4, 0);
     }
+
+    client_addr.sa_family = AF_UNSPEC;
+    if (connect(fd, &client_addr, client_addrlen) == -1) {
+        perror("connect");
+        return;
+    }
+    
 }
 
 void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
