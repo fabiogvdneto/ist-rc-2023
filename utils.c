@@ -49,3 +49,14 @@ int startswith(char *prefix, char *str) {
     while (*prefix && (*prefix++ == *str++));
     return (str - start);
 }
+
+int substring(char *str, char *stop, int len) {
+    for (int i = 0; (i < len) && (str[i] != '\0'); i++) {
+        if (str[i] == stop) {
+            str[i] = '\0';
+            return i+1;
+        }
+    }
+
+    return -1;
+}
