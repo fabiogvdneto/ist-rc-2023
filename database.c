@@ -176,8 +176,10 @@ int extract_password(char *uid, char *ext_pwd) {
     if (fread(ext_pwd, sizeof(char), USER_PWD_LEN, fp) != USER_PWD_LEN) {
         return ERROR;
     }
-
     fclose(fp);
+
+    ext_pwd[USER_PWD_LEN] = '\0';
+
     return SUCCESS;
 }
 

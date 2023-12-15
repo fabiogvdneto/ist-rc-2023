@@ -682,7 +682,7 @@ void command_list() {
             return;
         }
 
-        printf("List of ongoing active auctions:\n");
+        printf("List of auctions:\n");
 
         for (int i = 0; i < count; i++) {
             printf("Auction %s: %s.\n", aid[i], ((*state[i] == '1') ? "active" : "inactive"));
@@ -898,7 +898,7 @@ void command_bid(char *aid, char *value) {
     } else if (startswith("RBD ACC\n", buffer) == received) {
         printf("Bid accepted.\n");
     } else if (startswith("RBD REF\n", buffer) == received) {
-        printf("Bid refused: a larger a bid has already been placed.\n");
+        printf("Bid refused: value too low.\n");
     } else if (startswith("RBD ILG\n", buffer) == received) {
         printf("That auction is hosted by you.\n");
     } else if (startswith("RBD ERR\n", buffer) == received) {

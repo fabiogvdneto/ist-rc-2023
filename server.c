@@ -35,15 +35,8 @@
 - test asset related functions
 - implement verbose mode
 - implement fork
-- verify if user is already logged in when trying to log in - done?
-- verify if passwords match in every command where the users sends it:
-    - login
-    - logout
-    - unregister
-    - open
-    - close
-    - bid
 - (maybe) validate read info
+- overview
 */
 
 #define DEBUG 1
@@ -124,7 +117,7 @@ void response_login(int fd, char *uid, char* pwd) {
                 printf("ERROR\n");
                 return;
             } else if (ret2 == SUCCESS) {
-                char ext_pwd[USER_PWD_LEN];
+                char ext_pwd[USER_PWD_LEN+1];
                 extract_password(uid, ext_pwd);
                 if (!strcmp(pwd, ext_pwd)) {
                     create_login(uid);
@@ -158,8 +151,7 @@ void response_logout(int fd, char *uid, char *pwd) {
             return;
         }
     } else if (ret == SUCCESS) {
-        // é necessário verificar se as passwords são iguais?
-        char ext_pwd[USER_PWD_LEN];
+        char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
         if (!strcmp(pwd, ext_pwd)) {
             int ret2 = find_login(uid);
@@ -203,9 +195,7 @@ void response_unregister(int fd, char *uid, char *pwd) {
             return;
         }
     } else if (ret == SUCCESS) {
-        // é necessário verificar se as passwords são iguais?
-        // talvez verificar primeiro se está logged in e só depois se as passes são iguais
-        char ext_pwd[USER_PWD_LEN];
+        char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
         if (!strcmp(pwd, ext_pwd)) {
             int ret2 = find_login(uid);
@@ -279,6 +269,14 @@ void response_open(int fd, char *msg, ssize_t received) {
     } else if (ret == ERROR) {
         printf("ERROR\n");
     } else if (ret == SUCCESS) {
+        char ext_pwd[USER_PWD_LEN+1];
+        extract_password(uid, ext_pwd);
+        if (strcmp(pwd, ext_pwd)) {
+            if (write(fd, "ROA ERR\n", 8) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        }
         create_auction_dir(next_aid);
         create_start_file(next_aid, uid, name, fname, start_value, timeactive);
         add_user_auction(next_aid, uid);
@@ -286,8 +284,7 @@ void response_open(int fd, char *msg, ssize_t received) {
         ssize_t remaining = atol(fsize);
         ssize_t to_write = (msg + received) - first_bytes;
         to_write = (remaining > to_write) ? to_write : remaining;
-        create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
-        printf("passa\n");
+        //create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
 
         char buffer[BUFSIZ_S];
         int printed;
@@ -295,8 +292,6 @@ void response_open(int fd, char *msg, ssize_t received) {
             printf("ERROR in sprintf\n");
             return;
         }
-        printf("%s", buffer);
-        printf("%ld\n", printed);
         if (write_all_bytes(fd, buffer, printed) == -1) {
             printf("ERROR\n");
             return;
@@ -327,10 +322,7 @@ void response_close(int fd, char *msg) {
     }
 
     int ret = find_login(uid);
-    int ret2 = find_auction(aid);
-    int ret3 = find_user_auction(uid, aid);
-
-    if (ret == ERROR || ret2 == ERROR || ret3 == ERROR) {
+    if (ret == ERROR) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
@@ -338,32 +330,59 @@ void response_close(int fd, char *msg) {
             printf("ERROR\n");
             return;
         }
-    } else if (ret == SUCCESS && ret2 == NOT_FOUND) {
-        if (write(fd, "RCL EAU\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == NOT_FOUND) {
-        if (write(fd, "RCL EOW\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && check_auction_state(aid) == CLOSED) {
-        if (write(fd, "RCL END\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == SUCCESS && ret2 == SUCCESS && ret3 == SUCCESS && check_auction_state(aid) == OPEN) {
-        time_t curr_fulltime;
-        time(&curr_fulltime);
-        create_end_file(aid, curr_fulltime);
+    } else if (ret == SUCCESS) {
+        char ext_pwd[USER_PWD_LEN+1];
+        extract_password(uid, ext_pwd);
+        if (strcmp(pwd, ext_pwd)) {
+            if (write(fd, "RCL ERR\n", 8) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        } else {
+            int ret2 = find_auction(aid);
+            if (ret2 == ERROR) {
+                printf("ERROR\n");
+                return;
+            } else if (ret2 == NOT_FOUND) {
+                if (write(fd, "RCL EAU\n", 8) == -1) {
+                    printf("ERROR\n");
+                    return;
+                }
+            } else if (ret2 == SUCCESS) {
+                int ret3 = find_user_auction(uid, aid);
+                if (ret3 == ERROR) {
+                    printf("ERROR\n");
+                    return;
+                } else if (ret3 == NOT_FOUND) {
+                    if (write(fd, "RCL EOW\n", 8) == -1) {
+                        printf("ERROR\n");
+                        return;
+                    }
+                } else if (ret3 == SUCCESS) {
+                    int state = check_auction_state(aid);
+                    if (state == ERROR) {
+                        printf("ERROR\n");
+                        return;
+                    } else if (state == CLOSED) {
+                        if (write(fd, "RCL END\n", 8) == -1) {
+                            printf("ERROR\n");
+                            return;
+                        }
+                    } else if (state == OPEN) {
+                        time_t curr_fulltime;
+                        time(&curr_fulltime);
+                        create_end_file(aid, curr_fulltime);
 
-        if (write(fd, "RCL OK\n", 7) == -1) {
-            printf("ERROR\n");
-            return;
+                        if (write(fd, "RCL OK\n", 7) == -1) {
+                            printf("ERROR\n");
+                            return;
+                        }
+                    }
+                    
+                }
+            }
         }
     }
-
 }
 
 void response_myauctions(int fd, char *uid) {
@@ -542,6 +561,15 @@ void response_bid(int fd, char *msg) {
             return;
         }
     } else { // a partir sabemos que o cliente está logged in e o auction existe
+        char ext_pwd[USER_PWD_LEN+1];
+        extract_password(uid, ext_pwd);
+        if (strcmp(pwd, ext_pwd)) {
+            if (write(fd, "RBD ERR\n", 8) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        }
+        
         int ret3 = find_user_auction(uid, aid);
         if (ret3 == ERROR) {
             printf("ERROR\n");
@@ -663,6 +691,8 @@ void tcp_command_choser(int fd) {
         perror("read");
         return;
     }
+    buffer[received] = '\0';
+    printf("[TCP] Received %ld bytes: %s", received, buffer);
     
     if (startswith("OPA", buffer) == 3) {
         response_open(fd, buffer, received);
@@ -687,8 +717,9 @@ void udp_command_choser(int fd) {
         perror("recvfrom");
         return;
     }
+    buffer[received] = '\0';
 
-    printf("[UDP] Received %ld bytes.\n", received);
+    printf("[UDP] Received %ld bytes: %s", received, buffer);
 
     if (connect(fd, &client_addr, client_addrlen) == -1) {
         perror("connect");
