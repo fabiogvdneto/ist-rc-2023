@@ -371,9 +371,6 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     close(serverfd);
 
-    printf("buffer: %s\n", buffer);
-    printf("received: %ld\n", received);
-
     if (startswith("ROA OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
