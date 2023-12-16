@@ -272,11 +272,13 @@ int create_asset_file(int next_aid, int fd, char *fname, off_t fsize, char *firs
 
     ssize_t written = write_all_bytes(asset_fd, first_bytes, to_write);
     fsize -= written;
-    char buffer[BUFSIZ_S];
+    char buffer[BUFSIZ_L];
+    ssize_t readd, to_read = (fsize < BUFSIZ_L) ? fsize : BUFSIZ_L;
     while (fsize) {
-        read_all_bytes(fd, buffer, BUFSIZ_S);
-        written = write_all_bytes(asset_fd, buffer, BUFSIZ_S);
+        readd = read_all_bytes(fd, buffer, to_read);
+        written = write_all_bytes(asset_fd, buffer, readd);
         fsize -= written;
+        to_read = (fsize < BUFSIZ_L) ? fsize : BUFSIZ_L;
     }
 
     close(asset_fd);
@@ -285,20 +287,23 @@ int create_asset_file(int next_aid, int fd, char *fname, off_t fsize, char *firs
 
 int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
     char asset_dirname[60];
-    sprintf(asset_dirname, "AUCTIONS/%s/ASSET/", aid);
+    sprintf(asset_dirname, "AUCTIONS/%s/ASSET", aid);
 
     DIR *d = opendir(asset_dirname);
     struct dirent *p;
     while ((p = readdir(d))) {
-        if (validate_file_name(p->d_name) < 5) {
+        if (!validate_file_name(p->d_name)) {
             continue;
         }
+        printf("%s\n", p->d_name);
         strcpy(fname, p->d_name);
         break;
     }
     closedir(d);
 
-    int asset_fd = open(fname, O_RDONLY);
+    char asset_filename[60];
+    sprintf(asset_filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
+    int asset_fd = open(asset_filename, O_RDONLY);
     if (asset_fd == -1) {
         return ERROR;
     }
@@ -308,14 +313,17 @@ int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
         close(asset_fd);
         return ERROR;
     }
+    printf("%ld\n", statbuf.st_size);
     *fsize = statbuf.st_size;
 
     close(asset_fd);
     return SUCCESS;
 }
 
-int send_asset_file(int fd, char* fname, off_t fsize) {
-    int asset_fd = open(fname, O_RDONLY);
+int send_asset_file(int fd, char* aid, char* fname, off_t fsize) {
+    char asset_filename[60];
+    sprintf(asset_filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
+    int asset_fd = open(asset_filename, O_RDONLY);
     if (asset_fd == -1) {
         return ERROR;
     }

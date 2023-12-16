@@ -742,6 +742,7 @@ void command_show_asset(char *aid) {
             return;
         }
         *fsize++ = '\0';
+        off_t fsize_value = atol(fsize);
 
         char *fdata = strchr(fsize, ' ');
         if (!fdata) {
@@ -784,7 +785,7 @@ void command_show_asset(char *aid) {
             return;
         }
 
-        ssize_t remaining = atol(fsize);
+        ssize_t remaining = fsize_value;
         ssize_t to_write = (buffer + received) - fdata;
 
         to_write = (remaining > to_write) ? to_write : remaining;
@@ -834,7 +835,7 @@ void command_show_asset(char *aid) {
         
         close(fd);
         close(serverfd);
-        printf("Download complete: %s, %ld\n", pathname, atol(fsize));
+        printf("Download complete: %s, %ld bytes.\n", pathname, fsize_value);
     } else if (startswith("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (startswith("ERR\n", buffer) == received) {

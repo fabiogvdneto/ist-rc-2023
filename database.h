@@ -72,7 +72,7 @@ int create_asset_file(int next_aid, int fd, char *fname,
 
 int get_asset_file_info(char *aid, char *fname, off_t *fsize);
 
-int send_asset_file(int fd, char* fname, off_t fsize);
+int send_asset_file(int fd, char *aid, char *fname, off_t fsize);
 
 int add_user_auction(int next_aid, char *uid);
 

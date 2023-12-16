@@ -32,11 +32,10 @@
 #include "utils.h"
 
 /* Roadmap (server.c) 
-- test asset related functions
-- implement verbose mode
+- implement verbose mode in TCP
 - implement fork
-- (maybe) validate read info
-- overview
+- overview:
+    - send <3letters> ERR when database functions return ERROR
 */
 
 #define DEBUG 1
@@ -277,6 +276,14 @@ void response_open(int fd, char *msg, ssize_t received) {
                 return;
             }
         }
+        
+        if (next_aid > 999) {
+            if (write(fd, "ROA NOK\n", 8) == -1) {
+                printf("ERROR\n");
+                return;
+            }
+        }
+
         create_auction_dir(next_aid);
         create_start_file(next_aid, uid, name, fname, start_value, timeactive);
         add_user_auction(next_aid, uid);
@@ -284,7 +291,7 @@ void response_open(int fd, char *msg, ssize_t received) {
         ssize_t remaining = atol(fsize);
         ssize_t to_write = (msg + received) - first_bytes;
         to_write = (remaining > to_write) ? to_write : remaining;
-        //create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
+        create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
 
         char buffer[BUFSIZ_S];
         int printed;
@@ -298,7 +305,6 @@ void response_open(int fd, char *msg, ssize_t received) {
         }
         next_aid++;
     }
-    // quando é que retornaria ROA NOK?
 }
 
 void response_close(int fd, char *msg) {
@@ -508,9 +514,14 @@ void response_show_asset(int fd, char *msg) {
         char fname[FILE_NAME_MAX_LEN+1];
         off_t fsize = 0;
         get_asset_file_info(aid, fname, &fsize);
-        send_asset_file(fd, fname, fsize);
-
-        if (write(fd, "RSA OK\n", 7) == -1) {
+        char buffer[BUFSIZ_S];
+        ssize_t printed = sprintf(buffer, "RSA OK %s %ld ", fname, fsize);
+        if (write(fd, buffer, printed) == -1) {
+            printf("ERROR\n");
+            return;
+        }
+        send_asset_file(fd, aid, fname, fsize);
+        if (write(fd, "\n", 1) == -1) {
             printf("ERROR\n");
             return;
         }
@@ -625,10 +636,11 @@ void response_show_record(int fd, char *aid) {
         }
     } else if (ret == SUCCESS) {
         char buffer[BUFSIZ_L];
+        memset(buffer, 0, BUFSIZ_L);
 
         start_info_t start_info;
         extract_auction_start_info(aid, &start_info);
-        printed = sprintf(buffer+total_printed, "RRC OK %s %s %s %s %s %s %s", start_info.uid, start_info.name,
+        printed = sprintf(buffer, "RRC OK %s %s %s %s %s %s %s", start_info.uid, start_info.name,
             start_info.fname, start_info.value, start_info.date, start_info.time, start_info.timeactive);
         total_printed += printed;
 
@@ -643,8 +655,10 @@ void response_show_record(int fd, char *aid) {
         if (check_auction_state(aid) == CLOSED) {
             end_info_t end_info;
             extract_auction_end_info(aid, &end_info);
-            printed = sprintf(buffer+total_printed, " E %s %s %s\n", end_info.date, end_info.time, end_info.sec_time);
+            printed = sprintf(buffer+total_printed, " E %s %s %s", end_info.date, end_info.time, end_info.sec_time);
+            total_printed += printed;
         }
+        buffer[total_printed] = '\n';
 
         printf("buffer: %s", buffer);
         if (send(fd, buffer, strlen(buffer), 0) == -1) {
@@ -683,8 +697,8 @@ void tcp_command_choser(int fd) {
         perror("read");
         return;
     }
-    buffer[received] = '\0';
-    printf("[TCP] Received %ld bytes: %s", received, buffer);
+    //buffer[received] = '\0';
+    //printf("[TCP] Received %ld bytes: %s", received, buffer);
     
     if (startswith("OPA", buffer) == 3) {
         response_open(fd, buffer, received);
@@ -722,8 +736,6 @@ void udp_command_choser(int fd) {
         send(fd, "ERR\n", 4, 0);
         return;
     }
-
-    buffer[received-1] = '\0';
     
     char *delim = " \n";
     char *label = strtok(buffer,delim);
