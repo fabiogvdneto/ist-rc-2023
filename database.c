@@ -295,7 +295,6 @@ int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
         if (!validate_file_name(p->d_name)) {
             continue;
         }
-        printf("%s\n", p->d_name);
         strcpy(fname, p->d_name);
         break;
     }
@@ -313,7 +312,6 @@ int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
         close(asset_fd);
         return ERROR;
     }
-    printf("%ld\n", statbuf.st_size);
     *fsize = statbuf.st_size;
 
     close(asset_fd);

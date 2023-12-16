@@ -659,8 +659,7 @@ void response_show_record(int fd, char *aid) {
             total_printed += printed;
         }
         buffer[total_printed] = '\n';
-
-        printf("buffer: %s", buffer);
+        
         if (send(fd, buffer, strlen(buffer), 0) == -1) {
             printf("ERROR\n");
             return;
@@ -723,9 +722,6 @@ void udp_command_choser(int fd) {
         perror("recvfrom");
         return;
     }
-    buffer[received] = '\0';
-
-    printf("[UDP] Received %ld bytes: %s", received, buffer);
 
     if (connect(fd, &client_addr, client_addrlen) == -1) {
         perror("connect");

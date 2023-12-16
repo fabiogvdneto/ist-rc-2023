@@ -683,9 +683,10 @@ void command_list() {
         }
 
         printf("List of auctions:\n");
+        printf("%-10s\t%-10s\n", "Auction ID", "State");
 
         for (int i = 0; i < count; i++) {
-            printf("Auction %s: %s.\n", aid[i], ((*state[i] == '1') ? "active" : "inactive"));
+            printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (startswith("RLS ERR\n", buffer) == received) {
         printf("Received error message.\n");
@@ -1023,18 +1024,25 @@ void command_show_record(char *aid) {
             }
         }
 
-        printf("Auction %s was opened by user %s with name \"%s\", asset \"%s\" and start value %s. ", aid, 
-            host_uid, auction_name, asset_fname, start_value);
-        printf("It was opened on %s, %s to be active during %s seconds.\n", 
-            start_date, start_time, timeactive);
+        printf("Auction %s:\n", aid);
+        printf(" -> started by user %s on %s, %s.\n", host_uid, start_date, start_time);
+        printf(" -> starting with value %s and lasting at most %s seconds.\n", start_value, timeactive);
+        printf(" -> named \"%s\" with asset \"%s\".\n", auction_name, asset_fname);
 
+        if ((!bid_count) && ended) {
+            printf("No bids were placed in this auction.\n");
+        } else if (!bid_count) {
+            printf("No bids have been placed in this auction yet.\n");
+        } else {
+            printf("List of bids placed in this auction:\n");
+        }
         for (int i = 0; i < bid_count; i++) {
-            printf("- Bid placed by user %s, with value %s, on %s, %s, with %s seconds elapsed.\n", 
+            printf(" - Bid placed by user %s, with value %s, on %s, %s, with %s seconds elapsed.\n", 
                     bidder_uid[i], bid_value[i], bid_date[i], bid_time[i], bid_elapsed_time[i]);
         }
 
         if (ended) {
-            printf("Auction ended on %s, %s, with %s seconds elapsed.\n", end_date, end_time, end_elapsed_time);
+            printf("Ended on %s, %s, %s seconds after being started.\n", end_date, end_time, end_elapsed_time);
         }
     } else if (startswith("RRC ERR\n", buffer) == received) {
         printf("Received error message.\n");

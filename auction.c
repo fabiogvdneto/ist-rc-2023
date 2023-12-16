@@ -83,7 +83,7 @@ int validate_auction_name(char *str) {
     if (!str) return 0;
 
     for (int i = 0; i <= AUCTION_NAME_MAX_LEN; i++, str++) {
-        if (!isalnum(*str)) {
+        if (!(isalnum(*str) || (*str == '-') || (*str == '_') || (*str == '.'))) {
             return (*str == '\0');
         }
     }
