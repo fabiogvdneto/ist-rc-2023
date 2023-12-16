@@ -807,6 +807,7 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
     }
 
     if (listen(fd_tcp, BACKLOG) == -1) {
+        perror("listen");
         exit(EXIT_FAILURE);
     }
 
