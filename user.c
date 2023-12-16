@@ -39,6 +39,7 @@
     "The asset name must be composed of up to 24 alphanumeric characters plus '_', '-' and '.'.\n"
 #define INVALID_DATE "The date must be in the format YYYY-MM-DD.\n"
 #define INVALID_TIME "The time must be in the format HH:MM:SS.\n"
+#define ASSET_FILE_NOT_FOUND "The asset file could not be found.\n"
 
 #define DEBUG 1
 
@@ -304,7 +305,11 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     int fd = open(buffer, O_RDONLY);
     if (fd == -1) {
-        printf(ERROR_OPEN);
+        if (errno == ENOENT) {
+            printf(ASSET_FILE_NOT_FOUND);
+        } else {
+            printf(ERROR_OPEN);
+        }
         return;
     }
 
