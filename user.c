@@ -331,7 +331,8 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     close(fd);
 
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
-                    user_uid, user_pwd, name, start_value, duration, fname, fsize);
+        user_uid, user_pwd, name, start_value, duration, fname, fsize
+    );
     if (printed < 0) {
         printf(ERROR_SPRINTF);
         return;
@@ -1154,14 +1155,14 @@ void handle_signals() {
     act.sa_flags = SA_RESTART;
     act.sa_handler = SIG_IGN;
 
-    if (sigaction(SIGPIPE, &act, NULL) == -1) {
+    if (sigaction(SIGPIPE, &act, NULL) == SIG_ERR) {
         printf(ERROR_SIGACTION);
         exit(EXIT_FAILURE);
     }
 
     act.sa_handler = stop;
 
-    if (sigaction(SIGINT, &act, NULL) == -1) {
+    if (sigaction(SIGINT, &act, NULL) == SIG_ERR) {
         printf(ERROR_SIGACTION);
         exit(EXIT_FAILURE);
     }
