@@ -786,7 +786,6 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
 
     close(fd_udp);
     close(fd_tcp);
-
 }
 
 /* ---- Initialization ---- */
@@ -804,7 +803,6 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], PORT_FLAG)) {
             server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
-            printf("tu es estupido vai po crl");
             exit(EXIT_FAILURE);
         }
     }
