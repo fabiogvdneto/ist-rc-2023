@@ -434,28 +434,32 @@ int check_auction_state(char *aid) {
 }
 
 long get_max_bid_value(char *aid) {
+    struct dirent **filelist;
+    int n_entries, len;
+    int has_bids = 0;
+    long start_value, max_bid;
+
     char dirname[60];
     sprintf(dirname, "AUCTIONS/%s/BIDS", aid);
-
-    DIR *d = opendir(dirname);
-    struct dirent *p = readdir(d);
-    char bid_value_str[AUCTION_VALUE_MAX_LEN];
-    long max_bid_value = 0, bid_value, start_value = 0;
-    int count = 0;
-
-    while ((p = readdir(d))) {
-        if (!strcmp(p->d_name, "..") || !strcmp(p->d_name, ".")) {
-            continue;
+    n_entries = scandir(dirname, &filelist, 0, alphasort);
+    if (n_entries <= 0)
+        return 0;
+    
+    while (n_entries--) {
+        len = strlen(filelist[n_entries]->d_name);
+        if (len == AUCTION_VALUE_MAX_LEN+4) { // VVVVVV.txt
+            max_bid = atol(filelist[n_entries]->d_name);
+            printf("max_bid: %ld\n", max_bid);
+            has_bids = 1;
+            break;
         }
-        memcpy(bid_value_str, p->d_name, AUCTION_VALUE_MAX_LEN);
-        bid_value = atol(bid_value_str);
-        if (bid_value > max_bid_value) {
-            max_bid_value = bid_value;
-        }
-        count++;
+        free(filelist[n_entries]);
     }
+    free(filelist);
 
-    if (!count) {
+    if (has_bids) {
+        return max_bid;
+    } else {
         char start_filename[60];
         FILE *fp;
         sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
@@ -464,10 +468,8 @@ long get_max_bid_value(char *aid) {
         }
         fscanf(fp, "%*s %*s %*s %ld %*s %*s %*s %*s", &start_value);
         fclose(fp);
+        return start_value;
     }
-
-    closedir(d);
-    return (start_value > max_bid_value) ? start_value : max_bid_value;
 }
 
 int update_next_aid() {
