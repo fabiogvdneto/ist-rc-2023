@@ -679,6 +679,7 @@ int login(char *uid, char *pwd) {
     if (status == ERROR) return ERROR;
     if (status == SUCCESS) return ERR_USER_ALREADY_LOGGED_IN;
 
+    char buffer[BUFSIZ_S];
     switch (exists_user_password_file(uid)) {
         case ERROR:
             return ERROR;
@@ -689,7 +690,6 @@ int login(char *uid, char *pwd) {
 
             return USER_REGISTERED;
         case SUCCESS:
-            char buffer[BUFSIZ_S];
             extract_password(uid, buffer);
 
             if (strcmp(buffer, pwd)) return ERR_WRONG_PASSWORD;
