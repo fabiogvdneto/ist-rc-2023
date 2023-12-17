@@ -361,89 +361,58 @@ void response_show_asset(int fd, char *aid) {
     fclose(file);
 }
 
-void response_bid(int fd, char *msg) {
-    // Message: BID <uid> <password> <aid> <value>
-    char *uid = msg + 4;
-
-    char *pwd = strchr(uid, ' ');
-    *pwd++ = '\0';
-
-    char *aid = strchr(pwd, ' ');
-    *aid++ = '\0';
-
-    char *value_str = strchr(aid, ' ');
-    *value_str++ = '\0';
-
-    char *end = strchr(value_str, '\n');
-    *(end) = '\0';
-
-    if (!validate_user_id(uid) || !validate_user_password(pwd) ||
-     !validate_auction_id(aid) || !validate_auction_value(value_str)) {
-        if (write(fd, "RBD ERR\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    }
-
-    long value = atol(value_str);
-
+void response_bid(int fd, char *uid, char *pwd, char *aid, char *value_str) {
     int ret = exists_user_login_file(uid);
     int ret2 = find_auction(aid);
 
     if (ret == ERROR || ret2 == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NOT_FOUND) {
-        if (write(fd, "RBD NLG\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret2 == NOT_FOUND) {
-        if (write(fd, "RBD NOK\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else { // a partir sabemos que o cliente está logged in e o auction existe
-        char ext_pwd[USER_PWD_LEN+1];
-        extract_password(uid, ext_pwd);
-        if (strcmp(pwd, ext_pwd)) {
-            if (write(fd, "RBD ERR\n", 8) == -1) {
-                printf("ERROR\n");
-                return;
-            }
-        }
-        
-        int ret3 = find_user_auction(uid, aid);
-        if (ret3 == ERROR) {
-            printf("ERROR\n");
-            return;
-        } else if (ret3 == SUCCESS) {
-            if (write(fd, "RBD ILG\n", 8) == -1) {
-                printf("ERROR\n");
-                return;
-            }
-        } else { // a partir daqui sabemos que o auction não pertence ao cliente
-            if (check_auction_state(aid) == CLOSED) {
-                if (write(fd, "RBD NOK\n", 8) == -1) {
-                    printf("ERROR\n");
-                    return;
-                }
-            } else { // a partir daqui sabemos que o auction está aberto
-                if (value <= get_max_bid_value(aid)) {
-                    if (write(fd, "RBD REF\n", 8) == -1) {
-                        printf("ERROR\n");
-                        return;
-                    }
-                } else { // bid aceite
-                    if (write(fd, "RBD ACC\n", 8) == -1) {
-                        printf("ERROR\n");
-                        return;
-                    }
-                    add_bid(uid, aid, value);
-                    add_bidded(uid, aid);
-                }
-            }
-        }
+    }
+    
+    if (ret == NOT_FOUND) {
+        write(fd, "RBD NLG\n", 8);
+        return;
+    }
+    
+    if (ret2 == NOT_FOUND) {
+        write(fd, "RBD NOK\n", 8);
+        return;
+    }
+    
+    // a partir sabemos que o cliente está logged in e o auction existe
+    char ext_pwd[USER_PWD_LEN+1];
+    extract_password(uid, ext_pwd);
+    if (strcmp(pwd, ext_pwd)) {
+        write(fd, "RBD ERR\n", 8);
+        return;
+    }
+    
+    int ret3 = find_user_auction(uid, aid);
+    if (ret3 == ERROR) {
+        printf("ERROR\n");
+        return;
+    }
+    
+    if (ret3 == SUCCESS) {
+        write(fd, "RBD ILG\n", 8);
+        return;
+    }
+    
+    // a partir daqui sabemos que o auction não pertence ao cliente
+    if (check_auction_state(aid) == CLOSED) {
+        write(fd, "RBD NOK\n", 8);
+        return;
+    }
+
+    // a partir daqui sabemos que o auction está aberto
+    int value = atoi(value_str);
+    if (value <= get_max_bid_value(aid)) {
+        write(fd, "RBD REF\n", 8);
+    } else { // bid aceite
+        write(fd, "RBD ACC\n", 8);
+        add_bid(uid, aid, value);
+        add_bidded(uid, aid);
     }
 }
 
@@ -656,7 +625,7 @@ void tcp_command_choser(int fd) {
             return;
         }
 
-        response_bid(fd, buffer);
+        response_bid(fd, uid, pwd, aid, value);
     } else {
         write_all_bytes(fd, "ERR\n", 4);
     }
