@@ -632,7 +632,7 @@ void tcp_command_choser(int fd) {
         if (!validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_name(name) || !validate_auction_value(start_value) ||
                 !validate_auction_duration(timeactive) || !validate_file_name(fname) ||
-                !validate_file_size(fsize) || (ptr == NULL)) {
+                !validate_file_size(fsize) || (ptr == NULL) || (ptr - buffer > received)) {
             write_all_bytes(fd, "ROA ERR\n", 4);
             return;
         }
