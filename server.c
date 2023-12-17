@@ -59,77 +59,22 @@ int next_aid = 1;
 
 /* ---- Responses ---- */
 
-void response_login(int fd, char *uid, char *pwd) {
+void execute_login(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
         send(fd, "RLI ERR\n", 8, 0);
         return;
     }
-
-    int ret = find_user_dir(uid);
-    if (ret == ERROR) {
-        printf("ERROR\n");
-        return;
-    } else if (ret == NOT_FOUND) {
-        if (create_user_dir(uid) == ERROR) {
-            printf("ERROR\n");
-            return;
-            // exit?
-        }
-        if (create_login(uid) == ERROR) {
-            erase_user_dir(uid);
-            printf("ERROR\n");
-            return;
-        }
-        if (create_password(uid, pwd) == ERROR) {
-            erase_login(uid);
-            erase_password(uid);
-            printf("ERROR\n");
-            return;
-        }
-        if (send(fd, "RLI REG\n", 8, 0) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == SUCCESS) {
-        int ret2 = find_password(uid);
-        int ret3 = find_login(uid);
-        if (ret3 == ERROR) {
-            printf("ERROR\n");
-            return;
-        } else if (ret3 == SUCCESS) {
-            if (send(fd, "RLI NOK\n", 8, 0) == -1) {
-                printf("ERROR\n");
-                return;
-            }
-        } else if (ret3 == NOT_FOUND) {
-            if (ret2 == NOT_FOUND) {
-                create_password(uid, pwd);
-                create_login(uid);
-                if (send(fd, "RLI REG\n", 8, 0) == -1) {
-                    printf("ERROR\n");
-                    return;
-                }
-                return;
-            } else if (ret2 == ERROR) {
-                printf("ERROR\n");
-                return;
-            } else if (ret2 == SUCCESS) {
-                char ext_pwd[USER_PWD_LEN+1];
-                extract_password(uid, ext_pwd);
-                if (!strcmp(pwd, ext_pwd)) {
-                    create_login(uid);
-                    if (send(fd, "RLI OK\n", 7, 0) == -1) {
-                        printf("ERROR\n");
-                        return;
-                    }
-                } else {
-                    if (send(fd, "RLI NOK\n", 8, 0) == -1) {
-                        printf("ERROR\n");
-                        return;
-                    }
-                }
-            }
-        }
+    
+    switch (login(uid, pwd)) {
+        case USER_REGISTERED:
+            send(fd, "RLI REG\n", 8, 0);
+            break;
+        case USER_LOGGED_IN:
+            send(fd, "RLI OK\n", 7, 0);
+            break;
+        default:
+            send(fd, "RLI NOK\n", 8, 0);
+            break;
     }
 }
 
@@ -151,7 +96,7 @@ void response_logout(int fd, char *uid, char *pwd) {
         char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
         if (!strcmp(pwd, ext_pwd)) {
-            int ret2 = find_login(uid);
+            int ret2 = exists_user_login_file(uid);
             if (ret2 == SUCCESS) {
                 erase_login(uid);
                 if (send(fd, "RLO OK\n", 7, 0) == -1) {
@@ -187,27 +132,18 @@ void response_unregister(int fd, char *uid, char *pwd) {
 
     int ret = find_user_dir(uid);
     if (ret == NOT_FOUND) {
-        if (send(fd, "RUR UNR\n", 8, 0) == -1) {
-            printf("ERROR\n");
-            return;
-        }
+        send(fd, "RUR UNR\n", 8, 0);
     } else if (ret == SUCCESS) {
         char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
         if (!strcmp(pwd, ext_pwd)) {
-            int ret2 = find_login(uid);
+            int ret2 = exists_user_login_file(uid);
             if (ret2 == SUCCESS) {
                 erase_password(uid);
                 erase_login(uid);
-                if (send(fd, "RUR OK\n", 7, 0) == -1) {
-                    printf("ERROR\n");
-                    return;
-                }
+                send(fd, "RUR OK\n", 7, 0);
             } else if (ret2 == NOT_FOUND) {
-                if (send(fd, "RUR NOK\n", 8, 0) == -1) {
-                    printf("ERROR\n");
-                    return;
-                }
+                send(fd, "RUR NOK\n", 8, 0);
             } else if (ret2 == ERROR) {
                 printf("ERROR\n");
             }
@@ -242,7 +178,7 @@ void response_close(int fd, char *msg) {
         }
     }
 
-    int ret = find_login(uid);
+    int ret = exists_user_login_file(uid);
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
@@ -314,7 +250,7 @@ void response_myauctions(int fd, char *uid) {
         }
     }
 
-    int ret = find_login(uid);
+    int ret = exists_user_login_file(uid);
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
@@ -353,7 +289,7 @@ void response_mybids(int fd, char *uid) {
         }
     }
 
-    int ret = find_login(uid);
+    int ret = exists_user_login_file(uid);
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
@@ -470,7 +406,7 @@ void response_bid(int fd, char *msg) {
 
     long value = atol(value_str);
 
-    int ret = find_login(uid);
+    int ret = exists_user_login_file(uid);
     int ret2 = find_auction(aid);
 
     if (ret == ERROR || ret2 == ERROR) {
@@ -701,7 +637,7 @@ void tcp_command_choser(int fd) {
         if (aid > 0) {
             int printed = sprintf(buffer, "ROA OK %03d\n", aid);
             write_all_bytes(fd, buffer, printed);
-        } else if (aid == USER_NOT_LOGGED_IN) {
+        } else if (aid == ERR_USER_NOT_LOGGED_IN) {
             write_all_bytes(fd, "ROA NLG\n", 8);
         } else {
             write_all_bytes(fd, "ROA NOK\n", 8);
@@ -777,7 +713,7 @@ void udp_command_choser(int fd) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
         if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
-        response_login(fd, uid, pwd);
+        execute_login(fd, uid, pwd);
     } else if (!strcmp(label, "LOU")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
@@ -821,15 +757,26 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
-
-    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
     
     int fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
     if (fd_tcp == -1) {
         perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+    int enable = 1;
+    if (setsockopt(fd_udp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        perror("setsockopt(SO_REUSEADDR)");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        perror("setsockopt(SO_REUSEADDR)");
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
+        perror("bind");
         exit(EXIT_FAILURE);
     }
 

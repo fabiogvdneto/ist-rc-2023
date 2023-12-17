@@ -9,14 +9,19 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
+#define USER_LOGGED_IN 2
+#define USER_REGISTERED 1
+
 #define SUCCESS 0
 #define ERROR -1
 #define NOT_FOUND -2
 
-#define USER_NOT_LOGGED_IN -2
-#define USER_NOT_REGISTERED -3
-#define WRONG_PASSWORD -4
-#define REACHED_AUCTION_MAX -5
+#define ERR_USER_NOT_LOGGED_IN -2
+#define ERR_USER_NOT_REGISTERED -3
+#define ERR_WRONG_PASSWORD -4
+#define ERR_REACHED_AUCTION_MAX -5
+
+#define ERR_USER_ALREADY_LOGGED_IN -2
 
 #define CLOSED 3
 #define OPEN 4
@@ -57,7 +62,7 @@ int create_login(char *uid);
 
 int erase_login(char *uid);
 
-int find_login(char *uid);
+int exists_user_login_file(char *uid);
 
 int create_password(char *uid, char *pwd);
 
@@ -65,7 +70,7 @@ int extract_password(char *uid, char *ext_pwd);
 
 int erase_password(char *uid);
 
-int find_password(char *uid);
+int exists_user_password_file(char *uid);
 
 int get_asset_file_info(char *aid, char *fname, off_t *fsize);
 
@@ -106,6 +111,8 @@ int extract_auction_start_info(char *aid, start_info_t *start_info);
 int extract_auctions_bids_info(char *aid, bid_info_t *bids);
 
 int extract_auction_end_info(char *aid, end_info_t *end_info);
+
+int login(char *uid, char *pwd);
 
 int create_auction(char *password, start_info_t *auction);
 

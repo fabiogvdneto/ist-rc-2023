@@ -45,8 +45,8 @@
 #define FLAG_PORT "-p"
 #define FLAG_IP "-n"
 
-#define DEFAULT_PORT 58011 // 58019
-#define DEFAULT_IP "193.136.138.142" // "127.0.0.1"
+#define DEFAULT_PORT 58019 // 58011
+#define DEFAULT_IP "127.0.0.1" // "193.136.138.142"
 
 #define BUFSIZ_S 256
 #define BUFSIZ_M 2048

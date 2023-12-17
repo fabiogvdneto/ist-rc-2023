@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <sys/sendfile.h>
+#include <stdarg.h>
 
 /* Files */
 #include <sys/mman.h>
@@ -22,32 +23,6 @@
 #include "utils.h"
 
 int next_auction_id = 1;
-
-int create_user_dir(char *uid) {
-    char uid_dirname[60];
-    char hosted_dirname[60];
-    char bidded_dirname[60];
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    if ((mkdir(uid_dirname, S_IRWXU)) == -1) {
-        return ERROR;
-    }
-
-    sprintf(hosted_dirname, "USERS/%s/HOSTED", uid);
-    if ((mkdir(hosted_dirname, S_IRWXU)) == -1) {
-        rmdir(uid_dirname);
-        return ERROR;
-    }
-
-    sprintf(bidded_dirname, "USERS/%s/BIDDED", uid);
-    if ((mkdir(bidded_dirname, S_IRWXU)) == -1) {
-        rmdir(uid_dirname);
-        rmdir(hosted_dirname);
-        return ERROR;
-    }
-
-    return SUCCESS;
-}
 
 int erase_dir(char *dirname) {
     DIR *d = opendir(dirname);
@@ -87,81 +62,11 @@ int erase_dir(char *dirname) {
     return r;
 }
 
-int erase_user_dir(char *uid) {
-    char uid_dirname[60];
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    erase_dir(uid_dirname);
-
-    return SUCCESS;
-}
-
-int find_user_dir(char *uid) {
-    char uid_dirname[60];
-    FILE *fp;
-
-    sprintf(uid_dirname, "USERS/%s", uid);
-    if ((fp = fopen(uid_dirname, "r")) == NULL) {
-        if (errno == ENOENT) {
-            return NOT_FOUND;
-        } else {
-            return ERROR;
-        }
-    }
-    fclose(fp);
-    return SUCCESS;
-}
-
-int create_login(char *uid) {
-    char login_name[60];
-    FILE *fp;
-    
-    sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
-    if ((fp = fopen(login_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "Logged in\n");
-    fclose(fp);
-    return SUCCESS;
-}
-
 int erase_login(char *uid) {
     char login_name[60];
 
     sprintf(login_name, "USERS/%s/%s_login.txt", uid, uid);
     unlink(login_name);
-    return SUCCESS;
-}
-
-int find_login(char *uid) {
-    char pathname[60];
-    sprintf(pathname, "USERS/%s/%s_login.txt", uid, uid);
-
-    FILE *file = fopen(pathname, "r");
-
-    if (file != NULL) {
-        fclose(file);
-        return SUCCESS;
-    }
-
-    if (errno != ENOENT) {
-        perror("fopen");
-        return ERROR;
-    }
-
-    return USER_NOT_LOGGED_IN;
-}
-
-int create_password(char *uid, char *pwd) {
-    char pass_name[60];
-    FILE *fp;
-    
-    sprintf(pass_name, "USERS/%s/%s_pass.txt", uid, uid);
-    if ((fp = fopen(pass_name, "w")) == NULL) {
-        return ERROR;
-    }
-    fprintf(fp, "%s", pwd);
-    fclose(fp);
     return SUCCESS;
 }
 
@@ -176,7 +81,7 @@ int extract_password(char *uid, char *pwd) {
             return ERROR;
         }
 
-        return USER_NOT_REGISTERED;
+        return ERR_USER_NOT_REGISTERED;
     }
 
     if (fread(pwd, sizeof(char), USER_PWD_LEN, file) != USER_PWD_LEN) {
@@ -196,24 +101,6 @@ int erase_password(char *uid) {
     sprintf(pass_name, "USERS/%s/%s_pass.txt", uid, uid);
     unlink(pass_name);
     return SUCCESS;
-}
-
-int find_password(char *uid) {
-    char pathname[60];
-    sprintf(pathname, "USERS/%s/%s_pass.txt", uid, uid);
-    FILE *file = fopen(pathname, "r");
-
-    if (file != NULL) {
-        fclose(file);
-        return SUCCESS;
-    }
-
-    if (errno != ENOENT) {
-        perror("fopen");
-        return ERROR;
-    }
-
-    return USER_NOT_REGISTERED;
 }
 
 int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
@@ -665,24 +552,177 @@ int extract_auction_end_info(char *aid, end_info_t *end_info) {
     return SUCCESS;
 }
 
+/* ---- Utils ---- */
+
+int file_exists(char *pathname) {
+    FILE *file = fopen(pathname, "r");
+    
+    if (file != NULL) {
+        fclose(file);
+        return SUCCESS;
+    }
+
+    if (errno != ENOENT) {
+        perror("fopen");
+        return ERROR;
+    }
+
+    return NOT_FOUND;
+}
+
+/* ---- Users ---- */
+
+int exists_user_password_file(char *uid) {
+    char pathname[BUFSIZ];
+    sprintf(pathname, "USERS/%s/%s_pass.txt", uid, uid);
+    return file_exists(pathname);
+}
+
+int exists_user_login_file(char *uid) {
+    char pathname[BUFSIZ_S];
+    sprintf(pathname, "USERS/%s/%s_login.txt", uid, uid);
+    return file_exists(pathname);
+}
+
+int create_user_dirs(char *uid) {
+    char buffer[BUFSIZ_S];
+
+    sprintf(buffer, "USERS/%s", uid);
+    if ((mkdir(buffer, S_IRWXU) == -1) && (errno != EEXIST)) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    sprintf(buffer, "USERS/%s/HOSTED", uid);
+    if ((mkdir(buffer, S_IRWXU) == -1) && (errno != EEXIST)) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    sprintf(buffer, "USERS/%s/BIDDED", uid);
+    if ((mkdir(buffer, S_IRWXU) == -1) && (errno != EEXIST)) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    return SUCCESS;
+}
+
+int create_user_login_file(char *uid) {
+    char pathname[60];
+    sprintf(pathname, "USERS/%s/%s_login.txt", uid, uid);
+
+    FILE *file = fopen(pathname, "w");
+    if (file == NULL) {
+        perror("fopen");
+        return ERROR;
+    }
+    
+    fclose(file);
+    return SUCCESS;
+}
+
+int create_user_password_file(char *uid, char *pwd) {
+    char pathname[BUFSIZ_S];
+    sprintf(pathname, "USERS/%s/%s_pass.txt", uid, uid);
+
+    FILE *file = fopen(pathname, "w");
+    if (file == NULL) {
+        perror("fopen");
+        return ERROR;
+    }
+
+    if (fwrite(pwd, sizeof(char), USER_PWD_LEN, file) < USER_PWD_LEN) {
+        perror("fwrite");
+        return ERROR;
+    }
+    
+    fclose(file);
+    return SUCCESS;
+}
+
+int erase_user_dir(char *uid) {
+    char uid_dirname[60];
+
+    sprintf(uid_dirname, "USERS/%s", uid);
+    erase_dir(uid_dirname);
+
+    return SUCCESS;
+}
+
+int find_user_dir(char *uid) {
+    char uid_dirname[60];
+    FILE *fp;
+
+    sprintf(uid_dirname, "USERS/%s", uid);
+    if ((fp = fopen(uid_dirname, "r")) == NULL) {
+        if (errno == ENOENT) {
+            return NOT_FOUND;
+        } else {
+            return ERROR;
+        }
+    }
+
+    fclose(fp);
+    return SUCCESS;
+}
+
+/**
+ * Returns:
+ * - ERROR if an error occurred.
+ * - ERR_USER_ALREADY_LOGGED_IN if user is already logged in.
+ * - ERR_WRONG_PASSWORD if user exists but password does not match.
+ * - USER_LOGGED_IN if user was successfully logged in.
+ * - USER_REGISTERED if user was successfully registered.
+*/
+int login(char *uid, char *pwd) {
+    int status = exists_user_login_file(uid);
+
+    if (status == ERROR) return ERROR;
+    if (status == SUCCESS) {
+        return ERR_USER_ALREADY_LOGGED_IN;
+    }
+
+    switch (exists_user_password_file(uid)) {
+        case ERROR:
+            return ERROR;
+        case NOT_FOUND:
+            if (create_user_dirs(uid) == ERROR) return ERROR;
+            if (create_user_login_file(uid) == ERROR) return ERROR;
+            if (create_user_password_file(uid, pwd) == ERROR) return ERROR;
+
+            return USER_REGISTERED;
+        case SUCCESS:
+            char buffer[BUFSIZ_S];
+            extract_password(uid, buffer);
+
+            if (strcmp(buffer, pwd)) return ERR_WRONG_PASSWORD;
+            if (create_user_login_file(uid) == ERROR) return ERROR;
+
+            return USER_LOGGED_IN;
+        default:
+            return ERROR;
+    }
+}
+
 /* ---- Auctions ---- */
 
 int create_auction_dirs(int aid) {
     char pathname[BUFSIZ_S];
     sprintf(pathname, "AUCTIONS/%03d", aid);
-    if (mkdir(pathname, S_IRWXU) == -1) {
+    if ((mkdir(pathname, S_IRWXU) == -1) && (errno != EEXIST)) {
         perror("mkdir");
         return ERROR;
     }
 
     sprintf(pathname, "AUCTIONS/%03d/ASSET", aid);
-    if (mkdir(pathname, S_IRWXU) == -1) {
+    if ((mkdir(pathname, S_IRWXU) == -1) && (errno != EEXIST)) {
         perror("mkdir");
         return ERROR;
     }
 
     sprintf(pathname, "AUCTIONS/%03d/BIDS", aid);
-    if (mkdir(pathname, S_IRWXU) == -1) {
+    if ((mkdir(pathname, S_IRWXU) == -1) && (errno != EEXIST)) {
         perror("mkdir");
         return ERROR;
     }
@@ -727,7 +767,7 @@ int create_auction_hosted_file(int aid, char *uid) {
 }
 
 int create_auction(char *password, start_info_t *auction) {
-    int ret = find_login(auction->uid);
+    int ret = exists_user_login_file(auction->uid);
     if (ret != SUCCESS) {
         unlink(auction->fname);
         return ret;
@@ -744,12 +784,12 @@ int create_auction(char *password, start_info_t *auction) {
 
     if (strcmp(password, buffer)) {
         unlink(auction->fname);
-        return WRONG_PASSWORD;
+        return ERR_WRONG_PASSWORD;
     }
 
     if (next_auction_id == 1000) {
         unlink(auction->fname);
-        return REACHED_AUCTION_MAX;
+        return ERR_REACHED_AUCTION_MAX;
     }
 
     if (create_auction_dirs(next_auction_id) == ERROR) {
