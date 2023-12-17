@@ -67,14 +67,6 @@ int erase_password(char *uid);
 
 int find_password(char *uid);
 
-int create_auction_dir(int next_aid);
-
-int create_start_file(int next_aid, char *uid, char *name, char *fname, 
-    char *start_value, char *timeactive);
-
-int create_asset_file(int next_aid, int fd, char *fname,
-	ssize_t fsize, char *first_bytes, ssize_t to_write);
-
 int get_asset_file_info(char *aid, char *fname, off_t *fsize);
 
 int send_asset_file(int fd, char *aid, char *fname, off_t fsize);
