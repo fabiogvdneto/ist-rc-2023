@@ -46,11 +46,6 @@
 #define VERB_FLAG "-v"
 
 #define DEFAULT_PORT 58019
-#define DEFAULT_IP "127.0.0.1"
-
-#define BUFSIZ_S 256
-#define BUFSIZ_M 2048
-#define BUFSIZ_L 6144
 
 int verbose = 0;
 
@@ -735,12 +730,12 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
-    if (setsockopt(fd_udp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+    if (setsockopt(fd_udp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
@@ -804,9 +799,9 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
 int main(int argc, char **argv) {
     struct sockaddr_in server_addr_in;
 
+    server_addr_in.sin_addr.s_addr = INADDR_ANY;
     server_addr_in.sin_family = AF_INET;
     server_addr_in.sin_port = htons(DEFAULT_PORT);
-    server_addr_in.sin_addr.s_addr = inet_addr(DEFAULT_IP);
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], VERB_FLAG)) {
