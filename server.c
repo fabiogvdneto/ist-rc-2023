@@ -804,7 +804,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], PORT_FLAG)) {
             server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
-            printf("tu es estupido vai po crl");
+            printf("Usage: ./server [-p server_port] [-v]\n");
             exit(EXIT_FAILURE);
         }
     }

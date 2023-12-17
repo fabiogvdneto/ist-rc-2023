@@ -1200,6 +1200,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], FLAG_PORT)) {
             server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
+            printf("Usage: ./user [-n server_ip] [-p server_port]\n");
             exit(EXIT_FAILURE);
         }
     }
