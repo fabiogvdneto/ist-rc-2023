@@ -40,6 +40,8 @@
 
 #define DEFAULT_PORT 58019
 
+#define SOCKET_TIMEOUT_SECONDS 1
+
 int verbose = 0;
 
 /* ---- Next Auction ID */
@@ -717,7 +719,7 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
-    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
+    struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
     if (setsockopt(fd_udp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
         perror("setsockopt");
         exit(EXIT_FAILURE);

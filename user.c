@@ -50,6 +50,8 @@
 #define DEFAULT_PORT 58019 // 58011
 #define DEFAULT_IP "127.0.0.1" // "193.136.138.142"
 
+#define SOCKET_TIMEOUT_SECONDS 2
+
 struct sockaddr* server_addr;
 socklen_t server_addrlen;
 
@@ -60,7 +62,7 @@ int islogged = 0;
 
 /* ---- Sockets ---- */
 
-struct timeval timeout = { .tv_sec = 2, .tv_usec = 0 };
+struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
 
 int socket_connect(int type) {
     int fd = socket(AF_INET, type, 0);
