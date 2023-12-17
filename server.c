@@ -32,13 +32,6 @@
 /* Misc */
 #include "utils.h"
 
-/* Roadmap (server.c) 
-- implement verbose mode in TCP
-- implement fork
-- overview:
-    - send <3letters> ERR when database functions return ERROR
-*/
-
 #define DEBUG 1
 #define BACKLOG 10
 
