@@ -139,21 +139,6 @@ int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
     return SUCCESS;
 }
 
-int send_asset_file(int fd, char* aid, char* fname, off_t fsize) {
-    char filename[BUFSIZ_S];
-    sprintf(filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
-    int asset_fd = open(filename, O_RDONLY);
-    if (asset_fd == -1) {
-        return ERROR;
-    }
-
-    if ((sendfile(fd, asset_fd, NULL, fsize)) == -1) {
-        return ERROR;
-    }
-
-    return SUCCESS;
-}
-
 int add_user_auction(int next_aid, char *uid) {
     char user_auction_name[60];
     FILE *fp;
