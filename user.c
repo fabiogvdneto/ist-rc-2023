@@ -41,6 +41,8 @@
 #define INVALID_DATE "The date must be in the format YYYY-MM-DD.\n"
 #define INVALID_TIME "The time must be in the format HH:MM:SS.\n"
 #define ASSET_FILE_NOT_FOUND "The asset file could not be found.\n"
+#define INCORRECT_SYNTAX_OR_INVALID_VALUES "Incorrect message syntax or invalid parameter values.\n"
+#define UNEXPECTED_PROTOCOL_MESSAGE "Unexpected protocol message received.\n"
 
 #define FLAG_PORT "-p"
 #define FLAG_IP "-n"
@@ -150,9 +152,9 @@ void command_login(char *temp_uid, char *temp_pwd) {
         printf("New user registered.\n");
         islogged = 1;
     } else if (startswith("RLI ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -208,9 +210,9 @@ void command_logout() {
     } else if (startswith("RLO UNR\n", buffer) == received) {
         printf("Unknown user.\n");
     } else if (startswith("RLO ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -261,9 +263,9 @@ void command_unregister() {
     } else if (startswith("RUR UNR\n", buffer) == received) {
         printf("Incorrect unregister attempt.\n");
     } else if (startswith("RUR ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -395,9 +397,9 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     } else if (startswith("ROA NLG\n", buffer) == received) {
         printf("User not logged in.\n");
     } else if (startswith("ROA ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
         printf("%s %ld\n", buffer, received);
@@ -455,9 +457,9 @@ void command_close(char *aid) {
     } else if (startswith("RCL END\n", buffer) == received) {
         printf("The auction %s has already ended.\n", aid);
     } else if (startswith("RCL ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -537,9 +539,9 @@ void command_myauctions() {
             printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (startswith("RMA ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -619,9 +621,9 @@ void command_mybids() {
             printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (startswith("RMB ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -695,9 +697,9 @@ void command_list() {
             printf("%-10s\t%-10s\n", aid[i], ((*state[i] == '1') ? "Active" : "Inactive"));
         }
     } else if (startswith("RLS ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -835,9 +837,9 @@ void command_show_asset(char *aid) {
         
         printf("Download complete: %s (total of %s bytes).\n", pathname, fsize);
     } else if (startswith("RSA ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -901,9 +903,9 @@ void command_bid(char *aid, char *value) {
     } else if (startswith("RBD ILG\n", buffer) == received) {
         printf("That auction is hosted by you.\n");
     } else if (startswith("RBD ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -1042,9 +1044,9 @@ void command_show_record(char *aid) {
             printf("Ended on %s, %s, %s seconds after being started.\n", end_date, end_time, end_elapsed_time);
         }
     } else if (startswith("RRC ERR\n", buffer) == received) {
-        printf("Received error message.\n");
+        printf(INCORRECT_SYNTAX_OR_INVALID_VALUES);
     } else if (startswith("ERR\n", buffer) == received) {
-        printf("Received general error message.\n");
+        printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
     }
@@ -1176,7 +1178,6 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], FLAG_PORT)) {
             server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
-            printf("A sua pessoa apresenta-se néscia, encaminhe-se no sentido do orgão genital masculino.\n");
             exit(EXIT_FAILURE);
         }
     }
