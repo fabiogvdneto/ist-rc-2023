@@ -267,7 +267,6 @@ long get_max_bid_value(char *aid) {
         len = strlen(filelist[n_entries]->d_name);
         if (len == AUCTION_VALUE_MAX_LEN+4) { // VVVVVV.txt
             max_bid = atol(filelist[n_entries]->d_name);
-            printf("max_bid: %ld\n", max_bid);
             has_bids = 1;
             break;
         }
@@ -772,8 +771,6 @@ int create_auction(char *password, start_info_t *auction) {
         unlink(auction->fname);
         return ret;
     }
-
-    printf("%d\n", next_auction_id);
 
     char buffer[BUFSIZ_S];
     ret = extract_password(auction->uid, buffer);
