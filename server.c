@@ -154,12 +154,12 @@ void response_close(int fd, char *uid, char *pwd, char *aid) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
-        write(fd, "RCL NLG\n", 8);
+        write_all_bytes(fd, "RCL NLG\n", 8);
     } else if (ret == SUCCESS) {
         char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
         if (strcmp(pwd, ext_pwd)) {
-            if (write(fd, "RCL ERR\n", 8) == -1) {
+            if (write_all_bytes(fd, "RCL ERR\n", 8) == -1) {
                 printf("ERROR\n");
                 return;
             }
@@ -169,7 +169,7 @@ void response_close(int fd, char *uid, char *pwd, char *aid) {
                 printf("ERROR\n");
                 return;
             } else if (ret2 == NOT_FOUND) {
-                if (write(fd, "RCL EAU\n", 8) == -1) {
+                if (write_all_bytes(fd, "RCL EAU\n", 8) == -1) {
                     printf("ERROR\n");
                     return;
                 }
@@ -179,7 +179,7 @@ void response_close(int fd, char *uid, char *pwd, char *aid) {
                     printf("ERROR\n");
                     return;
                 } else if (ret3 == NOT_FOUND) {
-                    if (write(fd, "RCL EOW\n", 8) == -1) {
+                    if (write_all_bytes(fd, "RCL EOW\n", 8) == -1) {
                         printf("ERROR\n");
                         return;
                     }
@@ -189,7 +189,7 @@ void response_close(int fd, char *uid, char *pwd, char *aid) {
                         printf("ERROR\n");
                         return;
                     } else if (state == CLOSED) {
-                        if (write(fd, "RCL END\n", 8) == -1) {
+                        if (write_all_bytes(fd, "RCL END\n", 8) == -1) {
                             printf("ERROR\n");
                             return;
                         }
@@ -198,7 +198,7 @@ void response_close(int fd, char *uid, char *pwd, char *aid) {
                         time(&curr_fulltime);
                         create_end_file(aid, curr_fulltime);
 
-                        if (write(fd, "RCL OK\n", 7) == -1) {
+                        if (write_all_bytes(fd, "RCL OK\n", 7) == -1) {
                             printf("ERROR\n");
                             return;
                         }
@@ -313,7 +313,7 @@ void response_show_asset(int fd, char *aid) {
     int ret = find_auction(aid);
     
     if (ret == NOT_FOUND) {
-        write(fd, "RSA NOK\n", 8);
+        write_all_bytes(fd, "RSA NOK\n", 8);
         return;
     }
     
@@ -343,7 +343,7 @@ void response_show_asset(int fd, char *aid) {
         return;
     }
 
-    if (write(fd, "\n", 1) == -1) {
+    if (write_all_bytes(fd, "\n", 1) == -1) {
         printf("ERROR2\n");
         return;
     }
@@ -361,12 +361,12 @@ void response_bid(int fd, char *uid, char *pwd, char *aid, char *value_str) {
     }
     
     if (ret == NOT_FOUND) {
-        write(fd, "RBD NLG\n", 8);
+        write_all_bytes(fd, "RBD NLG\n", 8);
         return;
     }
     
     if (ret2 == NOT_FOUND) {
-        write(fd, "RBD NOK\n", 8);
+        write_all_bytes(fd, "RBD NOK\n", 8);
         return;
     }
     
@@ -374,7 +374,7 @@ void response_bid(int fd, char *uid, char *pwd, char *aid, char *value_str) {
     char ext_pwd[USER_PWD_LEN+1];
     extract_password(uid, ext_pwd);
     if (strcmp(pwd, ext_pwd)) {
-        write(fd, "RBD ERR\n", 8);
+        write_all_bytes(fd, "RBD ERR\n", 8);
         return;
     }
     
@@ -385,22 +385,22 @@ void response_bid(int fd, char *uid, char *pwd, char *aid, char *value_str) {
     }
     
     if (ret3 == SUCCESS) {
-        write(fd, "RBD ILG\n", 8);
+        write_all_bytes(fd, "RBD ILG\n", 8);
         return;
     }
     
     // a partir daqui sabemos que o auction não pertence ao cliente
     if (check_auction_state(aid) == CLOSED) {
-        write(fd, "RBD NOK\n", 8);
+        write_all_bytes(fd, "RBD NOK\n", 8);
         return;
     }
 
     // a partir daqui sabemos que o auction está aberto
     int value = atoi(value_str);
     if (value <= get_max_bid_value(aid)) {
-        write(fd, "RBD REF\n", 8);
+        write_all_bytes(fd, "RBD REF\n", 8);
     } else { // bid aceite
-        write(fd, "RBD ACC\n", 8);
+        write_all_bytes(fd, "RBD ACC\n", 8);
         add_bid(uid, aid, value);
         add_bidded(uid, aid);
     }
