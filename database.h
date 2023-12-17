@@ -5,10 +5,6 @@
 
 #include "auction.h"
 
-#define BUFSIZ_S 256
-#define BUFSIZ_M 2048
-#define BUFSIZ_L 6144
-
 #define USER_LOGGED_IN 2
 #define USER_REGISTERED 1
 
