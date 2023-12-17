@@ -520,7 +520,7 @@ void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrl
     }
 }
 
-void tcp_command_choser(int fd) {
+void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_addrlen) {
     char buffer[BUFSIZ_L+1];
     ssize_t received = read_all_bytes(fd, buffer, BUFSIZ_L);
     if (received == -1) {
@@ -542,6 +542,7 @@ void tcp_command_choser(int fd) {
         char *fname = strsep(&ptr, delim);
         char *fsize = strsep(&ptr, delim);
         char *fdata = ptr;
+        print_verbose(uid, request, &client_addr, client_addrlen);
 
         if (!validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_name(name) || !validate_auction_value(start_value) ||
@@ -627,6 +628,7 @@ void tcp_command_choser(int fd) {
         char *uid = strsep(&ptr, delim);
         char *pwd = strsep(&ptr, delim);
         char *aid = strsep(&ptr, "\n");
+        print_verbose(uid, request, &client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_id(aid)) {
@@ -637,6 +639,7 @@ void tcp_command_choser(int fd) {
         response_close(fd, uid, pwd, aid);
     } else if (!strcmp(request, "SAS")) {
         char *aid = strsep(&ptr, "\n");
+        print_verbose(NULL, request, &client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_auction_id(aid)) {
             write_all_bytes(fd, "ERR\n", 4);
@@ -649,6 +652,7 @@ void tcp_command_choser(int fd) {
         char *pwd = strsep(&ptr, delim);
         char *aid = strsep(&ptr, delim);
         char *value = strsep(&ptr, "\n");
+        print_verbose(uid, request, &client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_id(aid) || !validate_auction_value(value)) {
@@ -804,13 +808,15 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         }
 
         if (FD_ISSET(fd_tcp, &rfds)) {
-            int new_fd = accept(fd_tcp, NULL, NULL);
+            struct sockaddr client_addr;
+            socklen_t client_addrlen = sizeof(client_addr);
+            int new_fd = accept(fd_tcp, &client_addr, &client_addrlen);
             if (new_fd == -1) {
                 perror("accept");
                 break;
             }
 
-            tcp_command_choser(new_fd);
+            tcp_command_choser(new_fd, client_addr, client_addrlen);
             close(new_fd);
         }
 
