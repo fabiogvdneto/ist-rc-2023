@@ -104,10 +104,10 @@ int erase_password(char *uid) {
 }
 
 int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
-    char asset_dirname[60];
-    sprintf(asset_dirname, "AUCTIONS/%s/ASSET", aid);
+    char buffer[BUFSIZ_S];
+    sprintf(buffer, "AUCTIONS/%s/ASSET", aid);
 
-    DIR *d = opendir(asset_dirname);
+    DIR *d = opendir(buffer);
     struct dirent *p;
     while ((p = readdir(d))) {
         if (!validate_file_name(p->d_name)) {
@@ -118,28 +118,27 @@ int get_asset_file_info(char *aid, char *fname, off_t *fsize) {
     }
     closedir(d);
 
-    char asset_filename[60];
-    sprintf(asset_filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
-    int asset_fd = open(asset_filename, O_RDONLY);
-    if (asset_fd == -1) {
+    sprintf(buffer, "AUCTIONS/%s/ASSET/%s", aid, fname);
+    int fd = open(buffer, O_RDONLY);
+    if (fd == -1) {
         return ERROR;
     }
 
     struct stat statbuf;
-    if (fstat(asset_fd, &statbuf) == -1) {
-        close(asset_fd);
+    if (fstat(fd, &statbuf) == -1) {
+        close(fd);
         return ERROR;
     }
-    *fsize = statbuf.st_size;
 
-    close(asset_fd);
+    *fsize = statbuf.st_size;
+    close(fd);
     return SUCCESS;
 }
 
 int send_asset_file(int fd, char* aid, char* fname, off_t fsize) {
-    char asset_filename[60];
-    sprintf(asset_filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
-    int asset_fd = open(asset_filename, O_RDONLY);
+    char filename[BUFSIZ_S];
+    sprintf(filename, "AUCTIONS/%s/ASSET/%s", aid, fname);
+    int asset_fd = open(filename, O_RDONLY);
     if (asset_fd == -1) {
         return ERROR;
     }

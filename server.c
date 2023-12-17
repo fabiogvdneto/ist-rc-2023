@@ -158,35 +158,13 @@ void response_unregister(int fd, char *uid, char *pwd) {
     }
 }
 
-void response_close(int fd, char *msg) {
-    // Message: CLS <uid> <password> <aid>
-    char *uid = msg + 4;
-
-    char *pwd = strchr(uid, ' ');
-    *pwd++ = '\0';
-
-    char *aid = strchr(pwd, ' ');
-    *aid++ = '\0';
-
-    char *end = strchr(aid, '\n');
-    *(end) = '\0';
-
-    if (!validate_user_id(uid) || !validate_user_password(pwd) || !validate_auction_id(aid)) {
-        if (write(fd, "ROA ERR\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    }
-
+void response_close(int fd, char *uid, char *pwd, char *aid) {
     int ret = exists_user_login_file(uid);
     if (ret == ERROR) {
         printf("ERROR\n");
         return;
     } else if (ret == NOT_FOUND) {
-        if (write(fd, "RCL NLG\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
+        write(fd, "RCL NLG\n", 8);
     } else if (ret == SUCCESS) {
         char ext_pwd[USER_PWD_LEN+1];
         extract_password(uid, ext_pwd);
@@ -340,44 +318,47 @@ void response_list(int fd) {
     }
 }
 
-void response_show_asset(int fd, char *msg) {
+void response_show_asset(int fd, char *aid) {
     // Message: SAS <aid>
-    char *aid = msg + 4;
-    *(aid + AUCTION_ID_LEN) = '\0';
-
-    if (!validate_auction_id(aid)) {
-        if (write(fd, "RSA ERR\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    }
-
     int ret = find_auction(aid);
-    if (ret == ERROR) {
+    
+    if (ret == NOT_FOUND) {
+        write(fd, "RSA NOK\n", 8);
+        return;
+    }
+    
+    char fname[FILE_NAME_MAX_LEN+1];
+    off_t fsize = 0;
+    if (get_asset_file_info(aid, fname, &fsize) == ERROR) {
         printf("ERROR\n");
         return;
-    } else if (ret == NOT_FOUND) {
-        if (write(fd, "RSA NOK\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == SUCCESS) {
-        char fname[FILE_NAME_MAX_LEN+1];
-        off_t fsize = 0;
-        get_asset_file_info(aid, fname, &fsize);
-        char buffer[BUFSIZ_S];
-        ssize_t printed = sprintf(buffer, "RSA OK %s %ld ", fname, fsize);
-        if (write(fd, buffer, printed) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-        send_asset_file(fd, aid, fname, fsize);
-        if (write(fd, "\n", 1) == -1) {
-            printf("ERROR\n");
-            return;
-        }
     }
 
+    char buffer[BUFSIZ_S];
+    ssize_t printed = sprintf(buffer, "RSA OK %s %ld ", fname, fsize);
+    if (write_all_bytes(fd, buffer, printed) == -1) {
+        printf("ERROR\n");
+        return;
+    }
+
+    sprintf(buffer, "AUCTIONS/%s/ASSET/%s", aid, fname);
+    FILE *file = fopen(buffer, "r");
+    if (file == NULL) {
+        printf("ERROR\n");
+        return;
+    }
+
+    if (write_file_data(fd, file, fsize) > 0) {
+        printf("ERROR1\n");
+        return;
+    }
+
+    if (write(fd, "\n", 1) == -1) {
+        printf("ERROR2\n");
+        return;
+    }
+
+    fclose(file);
 }
 
 void response_bid(int fd, char *msg) {
@@ -653,7 +634,7 @@ void tcp_command_choser(int fd) {
             return;
         }
 
-        response_close(fd, buffer);
+        response_close(fd, uid, pwd, aid);
     } else if (!strcmp(request, "SAS")) {
         char *aid = strsep(&ptr, "\n");
         
@@ -662,7 +643,7 @@ void tcp_command_choser(int fd) {
             return;
         }
 
-        response_show_asset(fd, buffer);
+        response_show_asset(fd, aid);
     } else if (!strcmp(request, "BID")) {
         char *uid = strsep(&ptr, delim);
         char *pwd = strsep(&ptr, delim);
@@ -775,6 +756,27 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
+    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
+    if (setsockopt(fd_udp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_udp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
     if (bind(fd_udp, server_addr, server_addrlen) == -1) {
         perror("bind");
         exit(EXIT_FAILURE);
@@ -809,6 +811,7 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
             }
 
             tcp_command_choser(new_fd);
+            close(new_fd);
         }
 
         if (FD_ISSET(fd_udp, &rfds)) {

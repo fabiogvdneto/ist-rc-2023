@@ -79,6 +79,12 @@ int socket_connect(int type) {
         return -1;
     }
 
+    if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        close(fd);
+        return -1;
+    }
+
     if (connect(fd, server_addr, server_addrlen) == -1) {
         perror("connect");
         close(fd);
@@ -1159,8 +1165,6 @@ void handle_signals() {
         printf(ERROR_SIGACTION);
         exit(EXIT_FAILURE);
     }
-
-    // SIGCHD (when child dies -> SIG_IGN)
 }
 
 int main(int argc, char **argv) {
