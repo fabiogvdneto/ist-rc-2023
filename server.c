@@ -33,6 +33,7 @@
 #include "utils.h"
 
 /* Roadmap (server.c) 
+- implement verbose mode in TCP
 - implement fork
 - overview:
     - send <3letters> ERR when database functions return ERROR
@@ -700,17 +701,37 @@ void udp_command_choser(int fd) {
 }
 
 void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
-    int enable = 1;
-    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
-
     int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd_udp == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
+    
+    int fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd_tcp == -1) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
 
+    int enable = 1;
     if (setsockopt(fd_udp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
         perror("setsockopt(SO_REUSEADDR)");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        perror("setsockopt(SO_REUSEADDR)");
+        exit(EXIT_FAILURE);
+    }
+
+    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
+    if (setsockopt(fd_udp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+        perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
@@ -719,33 +740,13 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
-    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
-
-    int fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_tcp == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
-        perror("setsockopt(SO_REUSEADDR)");
-        exit(EXIT_FAILURE);
-    }
-
-    /*
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-    */
-    
-
     if (setsockopt(fd_tcp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
         perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
+        perror("bind");
         exit(EXIT_FAILURE);
     }
 
@@ -759,27 +760,22 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
         exit(EXIT_FAILURE);
     }
 
-    pid_t pid = fork();
-    if (pid == -1) {
-        exit(EXIT_FAILURE);
-    } else if (pid > 0) { // Parent process - UDP
-        close(fd_tcp);
+    fd_set rfds;
+    while (1) {
+        FD_ZERO(&rfds);
+        FD_SET(fd_udp, &rfds);
+        FD_SET(fd_tcp, &rfds);
 
-        while (1) {
-            udp_command_choser(fd_udp);
+        if (select(FD_SETSIZE, &rfds, NULL, NULL, NULL) == -1) {
+            perror("select");
+            break;
         }
-        
-        close(fd_udp);
-        exit(EXIT_SUCCESS); 
-    } else if (pid == 0) { // Child process - TCP
-        struct sockaddr client_addr;
-        socklen_t client_addrlen = sizeof(client_addr);
-        close(fd_udp);
 
-        while (1) {
+        if (FD_ISSET(fd_tcp, &rfds)) {
+            struct sockaddr client_addr;
+            socklen_t client_addrlen = sizeof(client_addr);
             int new_fd = accept(fd_tcp, &client_addr, &client_addrlen);
             if (new_fd == -1) {
-                printf("%d", errno);
                 perror("accept");
                 break;
             }
@@ -788,9 +784,14 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
             close(new_fd);
         }
 
-        close(fd_tcp);
-        exit(EXIT_SUCCESS);
+        if (FD_ISSET(fd_udp, &rfds)) {
+            udp_command_choser(fd_udp);
+        }
     }
+
+    close(fd_udp);
+    close(fd_tcp);
+
 }
 
 /* ---- Initialization ---- */
@@ -808,6 +809,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], PORT_FLAG)) {
             server_addr_in.sin_port = htons(atoi(argv[++i]));
         } else {
+            printf("tu es estupido vai po crl");
             exit(EXIT_FAILURE);
         }
     }

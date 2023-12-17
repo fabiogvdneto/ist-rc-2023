@@ -93,7 +93,7 @@ ssize_t write_file_data(int sockfd, FILE *file, off_t nbytes) {
 /* ---- Validators ---- */
 
 /**
- * This fucntion is similar to strspn() builtin function, but the initial segment can only be 
+ * This function is similar to strspn() builtin function, but the initial segment can only be 
  * located at the start of the string.
  * Returns the number of bytes from prefix that matches the given string.
 */
@@ -101,15 +101,4 @@ int startswith(char *prefix, char *str) {
     char *start = str;
     while (*prefix && (*prefix++ == *str++));
     return (str - start);
-}
-
-int substring(char *str, char stop, int len) {
-    for (int i = 0; (i < len) && (str[i] != '\0'); i++) {
-        if (str[i] == stop) {
-            str[i] = '\0';
-            return i+1;
-        }
-    }
-
-    return -1;
 }

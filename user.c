@@ -50,10 +50,6 @@
 #define DEFAULT_PORT 58019 // 58011
 #define DEFAULT_IP "127.0.0.1" // "193.136.138.142"
 
-#define BUFSIZ_S 256
-#define BUFSIZ_M 2048
-#define BUFSIZ_L 6144
-
 struct sockaddr* server_addr;
 socklen_t server_addrlen;
 
@@ -121,6 +117,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "LIN %s %s\n", temp_uid, temp_pwd);
     if (printed < 0) {
@@ -165,6 +162,7 @@ void command_login(char *temp_uid, char *temp_pwd) {
         printf(INVALID_PROTOCOL_MSG);
     }
 
+    // save logged in user's ID and password
     if (islogged) {
         strcpy(user_uid, temp_uid);
         strcpy(user_pwd, temp_pwd);
@@ -178,6 +176,7 @@ void command_logout() {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "LOU %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
@@ -231,6 +230,7 @@ void command_unregister() {
         return;
     }
     
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "UNR %s %s\n", user_uid, user_pwd);
     if (printed < 0) {
@@ -320,14 +320,15 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         return;
     }
 
+    // get asset file size
     struct stat statbuf;
     if (fstat(fd, &statbuf) == -1) {
         close(fd);
         printf(ERROR_FSTAT);
         return;
     }
-
     off_t fsize = statbuf.st_size;
+
     void *fdata = mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (fdata == MAP_FAILED) {
         close(fd);
@@ -337,9 +338,9 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
 
     close(fd);
 
+    // build message to send
     int printed = sprintf(buffer, "OPA %s %s %s %s %s %s %ld ",
-        user_uid, user_pwd, name, start_value, duration, fname, fsize
-    );
+        user_uid, user_pwd, name, start_value, duration, fname, fsize);
     if (printed < 0) {
         printf(ERROR_SPRINTF);
         return;
@@ -351,12 +352,14 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         return;
     }
 
+    // send first parameters
     if (write_all_bytes(serverfd, buffer, printed) == -1) {
         close(serverfd);
         printf(ERROR_SEND_MSG);
         return;
     }
 
+    // send asset file data
     if (write_all_bytes(serverfd, fdata, fsize) == -1) {
         close(serverfd);
         printf(ERROR_SEND_MSG);
@@ -369,6 +372,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         return;
     }
     
+    // send \n
     if (write_all_bytes(serverfd, "\n", 1) == -1) {
         close(serverfd);
         printf(ERROR_SEND_MSG);
@@ -408,7 +412,6 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         printf(UNEXPECTED_PROTOCOL_MESSAGE);
     } else {
         printf(INVALID_PROTOCOL_MSG);
-        printf("%s %ld\n", buffer, received);
     }
 }
 
@@ -424,6 +427,7 @@ void command_close(char *aid) {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "CLS %s %s %s\n", user_uid, user_pwd, aid);
     if (printed < 0) {
@@ -478,6 +482,7 @@ void command_myauctions() {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "LMA %s\n", user_uid);
     if (printed < 0) {
@@ -522,6 +527,8 @@ void command_myauctions() {
         char *state[BUFSIZ_S];
         int nauctions = 0;
 
+        // validate all auctions IDs and states
+        // and only after that display it 
         strtok(buffer+4, delim);
         while ((aid[nauctions] = strtok(NULL, delim))) {
             state[nauctions] = strtok(NULL, delim);
@@ -560,6 +567,7 @@ void command_mybids() {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "LMB %s\n", user_uid);
     if (printed < 0) {
@@ -604,6 +612,8 @@ void command_mybids() {
         char *state[BUFSIZ_S];
         int nbids = 0;
 
+        // validate all auctions IDs and states
+        // and only after that display it 
         strtok(buffer+4, delim);
         while ((aid[nbids] = strtok(NULL, delim))) {
             state[nbids] = strtok(NULL, delim);
@@ -675,6 +685,9 @@ void command_list() {
 
         strtok(buffer+4, delim);
 
+
+        // validate all auctions IDs and states
+        // and only after that display it 
         while ((aid[count] = strtok(NULL, delim))) {
             state[count] = strtok(NULL, delim);
 
@@ -696,7 +709,6 @@ void command_list() {
             return;
         }
 
-        printf("List of auctions:\n");
         printf("%-10s\t%-10s\n", "Auction ID", "State");
 
         for (int i = 0; i < count; i++) {
@@ -718,6 +730,7 @@ void command_show_asset(char *aid) {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_L];
     int printed = sprintf(buffer, "SAS %s\n", aid);
     if (printed < 0) {
@@ -770,6 +783,7 @@ void command_show_asset(char *aid) {
             return;
         }
 
+        // create dir "output" to store downloaded asset files
         if ((mkdir("output", S_IRWXU) == -1) && (errno != EEXIST)) {
             close(serverfd);
             printf(ERROR_MKDIR);
@@ -870,6 +884,7 @@ void command_bid(char *aid, char *value) {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_S];
     int printed = sprintf(buffer, "BID %s %s %s %s\n", user_uid, user_pwd, aid, value);
     if (printed < 0) {
@@ -925,6 +940,7 @@ void command_show_record(char *aid) {
         return;
     }
 
+    // build message to send
     char buffer[BUFSIZ_L];
     int printed = sprintf(buffer, "SRC %s\n", aid);
     if (printed < 0) {
@@ -971,6 +987,7 @@ void command_show_record(char *aid) {
         char *start_time = strtok(NULL, delim);
         char *timeactive = strtok(NULL, delim);
 
+        // validate all information received
         if (!validate_user_id(host_uid) || !validate_auction_name(auction_name) ||
                 !validate_file_name(asset_fname) || !validate_auction_value(start_value) ||
                 !validate_date(start_date) || !validate_time(start_time) ||
@@ -1029,6 +1046,7 @@ void command_show_record(char *aid) {
             }
         }
 
+        // and only here display it
         printf("Auction %s:\n", aid);
         printf(" -> started by user %s on %s, %s.\n", host_uid, start_date, start_time);
         printf(" -> starting with value %s and lasting at most %s seconds.\n", start_value, timeactive);
@@ -1148,8 +1166,6 @@ void stop() {
 void handle_signals() {
     struct sigaction act;
 
-    // About sigaction flags:
-    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
     sigemptyset(&act.sa_mask);
     act.sa_flags = SA_RESTART;
     act.sa_handler = SIG_IGN;

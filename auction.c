@@ -36,7 +36,7 @@ int validate_file_name(char *str) {
     for (int i = 0; i <= FILE_NAME_MAX_LEN; i++, str++) {
         char c = *str;
 
-        // Check if all characters  are either alphanumeric or '-', '_', '.'.
+        // Check if all characters are either alphanumeric or '-', '_', '.'.
         if (!(isalnum(c) || (c == '-') || (c == '_') || (c == '.'))) {
             if ((c != '\0') || (i < 5)) return 0;
 
@@ -86,6 +86,7 @@ int validate_auction_name(char *str) {
     if (!str) return 0;
 
     for (int i = 0; i <= AUCTION_NAME_MAX_LEN; i++, str++) {
+        // Check if all characters are either alphanumeric or '-', '_', '.'.
         if (!(isalnum(*str) || (*str == '-') || (*str == '_') || (*str == '.'))) {
             return (*str == '\0');
         }

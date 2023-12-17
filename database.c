@@ -19,11 +19,15 @@
 #include <dirent.h>
 #include "database.h"
 
+/* Auction Protocol */
 #include "auction.h"
+
+/* Misc */
 #include "utils.h"
 
 int next_auction_id = 1;
 
+// recursively erase a dir
 int erase_dir(char *dirname) {
     DIR *d = opendir(dirname);
     int r = -1;
@@ -169,6 +173,7 @@ int create_end_file(char *aid, time_t end_fulltime) {
     long start_fulltime;
     FILE *fp;
 
+    // read start info
     sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
     if ((fp = fopen(start_filename, "r")) == NULL) {
         return ERROR;
@@ -187,6 +192,7 @@ int create_end_file(char *aid, time_t end_fulltime) {
     if ((fp = fopen(end_filename, "w")) == NULL) {
         return ERROR;
     }
+    // write end info
     fprintf(fp, "%s %ld", end_datetime, end_fulltime - start_fulltime);
     fclose(fp);
     return SUCCESS;
@@ -224,6 +230,7 @@ int find_end(char *aid) {
 }
 
 int check_auction_state(char *aid) {
+    // if end file is found, then auction has ended
     if (find_end(aid) == SUCCESS) {
         return CLOSED;
     }
@@ -242,6 +249,8 @@ int check_auction_state(char *aid) {
     time_t curr_fulltime;
     time(&curr_fulltime);
 
+    // if end file is not found, calculate time elapsed since start
+    // to determine if it already ended or not
     if ((curr_fulltime - start_fulltime) > timeactive) {
         create_end_file(aid, start_fulltime + timeactive);
         return CLOSED;
@@ -250,6 +259,7 @@ int check_auction_state(char *aid) {
     }
 }
 
+// get the minimum value for new bids
 long get_max_bid_value(char *aid) {
     struct dirent **filelist;
     int n_entries, len;
@@ -262,9 +272,11 @@ long get_max_bid_value(char *aid) {
     if (n_entries <= 0)
         return 0;
     
+    // file names are order ascendently,
+    // so start from end to get max bid value
     while (n_entries--) {
         len = strlen(filelist[n_entries]->d_name);
-        if (len == AUCTION_VALUE_MAX_LEN+4) { // VVVVVV.txt
+        if (len == AUCTION_VALUE_MAX_LEN+4) { // VVVVVV.txt - length 10
             max_bid = atol(filelist[n_entries]->d_name);
             has_bids = 1;
             break;
@@ -273,6 +285,8 @@ long get_max_bid_value(char *aid) {
     }
     free(filelist);
 
+    // if no bids have been placed,
+    // then bids have to be bigger than start value
     if (has_bids) {
         return max_bid;
     } else {
@@ -288,6 +302,7 @@ long get_max_bid_value(char *aid) {
     }
 }
 
+// get the max auction ID existent to determine the ID of the next auction
 int update_next_aid() {
     struct dirent **filelist;
     int n_entries, len;
@@ -318,6 +333,7 @@ int add_bid(char *uid, char *aid, long value) {
     char bid_datetime[DATE_LEN + TIME_LEN + 2];
     FILE *fp;
 
+    // read start full time to determine seconds elapsed since the start
     sprintf(start_filename, "AUCTIONS/%s/START_%s.txt", aid, aid);
     if ((fp = fopen(start_filename, "r")) == NULL) {
         return ERROR;
@@ -356,8 +372,6 @@ int add_bidded(char *uid, char *aid) {
     return SUCCESS;
 }
 
-// TODO: função mais geral para encontrar ficheiro numa diretoria
-
 int find_user_auction(char *uid, char *aid) {
     char dirname[60];
     sprintf(dirname, "USERS/%s/HOSTED", uid);
@@ -376,6 +390,7 @@ int find_user_auction(char *uid, char *aid) {
     return NOT_FOUND;
 }
 
+// extract auctions from given user
 int extract_user_auctions(char *uid, char* auctions) {
     char dirname[60];
     sprintf(dirname, "USERS/%s/HOSTED/", uid);
@@ -414,6 +429,7 @@ int extract_user_auctions(char *uid, char* auctions) {
     return count;
 }
 
+// extract auctions on which given user has placed bids
 int extract_user_bidded_auctions(char *uid, char* bidded) {
     char dirname[60];
     sprintf(dirname, "USERS/%s/BIDDED/", uid);
@@ -452,6 +468,7 @@ int extract_user_bidded_auctions(char *uid, char* bidded) {
     return count;
 }
 
+// extract all existent auctions
 int extract_auctions(char* auctions) {
     struct dirent **filelist;
     int n_entries, len, count = 0, state, iter = 0;
@@ -498,6 +515,7 @@ int extract_auction_start_info(char *aid, start_info_t *start_info) {
     return SUCCESS;
 }
 
+// extract information about all bids placed in a given auction
 int extract_auctions_bids_info(char *aid, bid_info_t *bids) {
     char dirname[60];
     sprintf(dirname, "AUCTIONS/%s/BIDS/", aid);
