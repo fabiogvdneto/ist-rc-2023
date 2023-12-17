@@ -59,7 +59,7 @@ int next_aid = 1;
 
 /* ---- Responses ---- */
 
-void execute_login(int fd, char *uid, char *pwd) {
+void response_login(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
         send(fd, "RLI ERR\n", 8, 0);
         return;
@@ -712,35 +712,35 @@ void udp_command_choser(int fd) {
     if (!strcmp(label, "LIN")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
-        execute_login(fd, uid, pwd);
+        print_verbose(uid, label, &client_addr, client_addrlen);
+        response_login(fd, uid, pwd);
     } else if (!strcmp(label, "LOU")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
+        print_verbose(uid, label, &client_addr, client_addrlen);
         response_logout(fd, uid, pwd);
     } else if (!strcmp(label, "UNR")) {
         char *uid = strtok(NULL, delim);
         char *pwd = strtok(NULL, delim);
-        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
+        print_verbose(uid, label, &client_addr, client_addrlen);
         response_unregister(fd, uid, pwd);
     } else if (!strcmp(label, "LMA")) {
         char *uid = strtok(NULL, delim);
-        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
+        print_verbose(uid, label, &client_addr, client_addrlen);
         response_myauctions(fd, uid); 
     } else if (!strcmp(label, "LMB")) {
         char *uid = strtok(NULL, delim);
-        if (verbose) print_verbose(uid, label, &client_addr, client_addrlen);
+        print_verbose(uid, label, &client_addr, client_addrlen);
         response_mybids(fd, uid);
     } else if (!strcmp(label, "LST")) {
-        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
+        print_verbose(NULL, label, &client_addr, client_addrlen);
         response_list(fd);
     } else if (!strcmp(label, "SRC")) {
         char *aid = strtok(NULL, delim);
-        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
+        print_verbose(NULL, label, &client_addr, client_addrlen);
         response_show_record(fd, aid);
     } else {
-        if (verbose) print_verbose(NULL, label, &client_addr, client_addrlen);
+        print_verbose(NULL, label, &client_addr, client_addrlen);
         send(fd, "ERR\n", 4, 0);
     }
 
