@@ -422,6 +422,7 @@ int update_next_aid() {
     }
     free(filelist);
 
+    next_auction_id = max_auction_id + 1;
     return max_auction_id + 1;
 }
 
@@ -664,12 +665,76 @@ int extract_auction_end_info(char *aid, end_info_t *end_info) {
     return SUCCESS;
 }
 
+int create_auction_dirs(int aid) {
+    char pathname[BUFSIZ_S];
+    sprintf(pathname, "AUCTIONS/%03d", aid);
+    if (mkdir(pathname, S_IRWXU) == -1) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    sprintf(pathname, "AUCTIONS/%03d/ASSET", aid);
+    if (mkdir(pathname, S_IRWXU) == -1) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    sprintf(pathname, "AUCTIONS/%03d/BIDS", aid);
+    if (mkdir(pathname, S_IRWXU) == -1) {
+        perror("mkdir");
+        return ERROR;
+    }
+
+    return SUCCESS;
+}
+
+int create_auction_start_file(int aid, start_info_t *auction) {
+    char buffer[BUFSIZ_S];
+    sprintf(buffer, "AUCTIONS/%03d/START_%03d.txt", aid, aid);
+    FILE *file = fopen(buffer, "w");
+    if (file == NULL) {
+        perror("fopen");
+        unlink(auction->fname);
+        return ERROR;
+    }
+
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    strftime(buffer, BUFSIZ_S, "%Y-%m-%d %H:%M:%S", timeinfo);
+    fprintf(file, "%s %s %s %s %s %s %ld",
+        auction->uid, auction->name, auction->fname, auction->value,
+        auction->timeactive, buffer, rawtime
+    );
+    fclose(file);
+
+    return SUCCESS;
+}
+
+int create_auction_hosted_file(int aid, char *uid) {
+    char pathname[BUFSIZ_S];
+    sprintf(pathname, "USERS/%s/HOSTED/%03d.txt", uid, aid);
+    FILE *file = fopen(pathname, "w");
+
+    if (file == NULL) {
+        perror("fopen");
+        return ERROR;
+    }
+
+    fclose(file);
+    return SUCCESS;
+}
+
 int create_auction(char *password, start_info_t *auction) {
     int ret = find_login(auction->uid);
     if (ret != SUCCESS) {
         unlink(auction->fname);
         return ret;
     }
+
+    printf("%d\n", next_auction_id);
 
     char buffer[BUFSIZ_S];
     ret = extract_password(auction->uid, buffer);
@@ -688,55 +753,20 @@ int create_auction(char *password, start_info_t *auction) {
         return REACHED_AUCTION_MAX;
     }
 
-    sprintf(buffer, "AUCTIONS/%03d", next_auction_id);
-    if (mkdir(buffer, S_IRWXU) == -1) {
-        perror("mkdir");
+    if (create_auction_dirs(next_auction_id) == ERROR) {
         unlink(auction->fname);
         return ERROR;
     }
 
-    sprintf(buffer, "AUCTIONS/%03d/ASSET", next_auction_id);
-    if (mkdir(buffer, S_IRWXU) == -1) {
-        perror("mkdir");
+    if (create_auction_start_file(next_auction_id, auction) == ERROR) {
         unlink(auction->fname);
         return ERROR;
     }
 
-    sprintf(buffer, "AUCTIONS/%03d/BIDS", next_auction_id);
-    if (mkdir(buffer, S_IRWXU) == -1) {
-        perror("mkdir");
+    if (create_auction_hosted_file(next_auction_id, auction->uid) == ERROR) {
         unlink(auction->fname);
         return ERROR;
     }
-
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-
-    sprintf(buffer, "AUCTIONS/%03d/START_%03d.txt", next_auction_id, next_auction_id);
-    FILE *file = fopen(buffer, "w");
-    if (file == NULL) {
-        perror("fopen");
-        unlink(auction->fname);
-        return ERROR;
-    }
-
-    strftime(buffer, BUFSIZ_S, "%Y-%m-%d %H:%M:%S", timeinfo);
-    fprintf(file, "%s %s %s %s %s %s %ld",
-        auction->uid, auction->name, auction->fname, auction->value,
-        auction->timeactive, buffer, rawtime
-    );
-    fclose(file);
-
-    sprintf(buffer, "USERS/%s/HOSTED/%03d.txt", auction->uid, next_auction_id);
-    file = fopen(buffer, "w");
-    if (file == NULL) {
-        perror("fopen");
-        unlink(auction->fname);
-        return ERROR;
-    }
-    fclose(file);
 
     sprintf(buffer, "AUCTIONS/%03d/ASSET/%s", next_auction_id, auction->fname);
     if (rename(auction->fname, buffer) == -1) {
