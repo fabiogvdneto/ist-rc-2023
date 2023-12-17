@@ -1,13 +1,18 @@
 #include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
 #include "utils.h"
 
-void panic(char *str) {
-    fprintf(stderr, "%s", str);
-    exit(EXIT_FAILURE);
+void debug(char *str, ...) {
+    if (DEBUG) {
+        va_list ap;
+        va_start(ap, str);
+        vprintf(str, ap);
+        va_end(ap);
+    }
 }
 
 /* ---- Read & Write ---- */
@@ -18,7 +23,7 @@ ssize_t read_all_bytes(int fd, char *buffer, ssize_t nbytes) {
         readd += res;
     }
 
-    if ((res == -1) && (errno != EAGAIN) && (errno != EWOULDBLOCK) && (errno != EINPROGRESS)) {
+    if ((res == -1) && (errno != EAGAIN) && (errno != EWOULDBLOCK)) {
         perror("read");
         return res;
     }
@@ -35,6 +40,54 @@ ssize_t write_all_bytes(int fd, char *buffer, ssize_t nbytes) {
     }
 
     return written;
+}
+
+ssize_t read_file_data(int sockfd, FILE *file, off_t nbytes) {
+    ssize_t ret;
+    size_t to_read;
+    char buffer[BUFSIZ_L];
+    while (nbytes > 0) {
+        to_read = (nbytes > BUFSIZ_L) ? BUFSIZ_L : nbytes;
+
+        ret = read_all_bytes(sockfd, buffer, to_read);
+        if (ret == -1) {
+            perror("read");
+            return ret;
+        }
+
+        if (ret == 0) return nbytes; // Timeout
+
+        if (fwrite(buffer, sizeof(char), to_read, file) < to_read) {
+            perror("fwrite");
+            return ret;
+        }
+
+        nbytes -= to_read;
+    }
+
+    return nbytes;
+}
+
+ssize_t write_file_data(int sockfd, FILE *file, off_t nbytes) {
+    size_t to_write;
+    char buffer[BUFSIZ_L];
+    while (nbytes > 0) {
+        to_write = (nbytes > BUFSIZ_L) ? BUFSIZ_L : nbytes;
+
+        if (fread(buffer, sizeof(char), to_write, file) < to_write) {
+            perror("fread");
+            return nbytes;
+        }
+
+        if (write_all_bytes(sockfd, buffer, to_write) == -1) {
+            perror("write");
+            return nbytes;
+        }
+
+        nbytes -= to_write;
+    }
+
+    return nbytes;
 }
 
 /* ---- Validators ---- */

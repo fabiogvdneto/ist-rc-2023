@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -221,89 +222,6 @@ void response_unregister(int fd, char *uid, char *pwd) {
         }
     } else if (ret == ERROR) {
         printf("ERROR\n");
-    }
-}
-
-void response_open(int fd, char *msg, ssize_t received) {
-    // Message: OPA <uid> <password> <name> <start_value> <timeactive> <fname> <fzise> <fdata>
-    char *uid = msg + 4;
-
-    char *pwd = strchr(uid, ' ');
-    *pwd++ = '\0';
-
-    char *name = strchr(pwd, ' ');
-    *name++ = '\0';
-
-    char *start_value = strchr(name, ' ');
-    *start_value++ = '\0';
-
-    char *timeactive = strchr(start_value, ' ');
-    *timeactive++ = '\0';
-
-    char *fname = strchr(timeactive, ' ');
-    *fname++ = '\0';
-
-    char *fsize = strchr(fname, ' ');
-    *fsize++ = '\0';
-
-    char *first_bytes = strchr(fsize, ' ');
-    *first_bytes++ = '\0';
-
-    if (!validate_user_id(uid) || !validate_user_password(pwd) ||
-     !validate_auction_name(name) || !validate_auction_value(start_value) ||
-     !validate_auction_duration(timeactive) || !validate_file_name(fname) ||
-     !validate_file_size(fsize)) {
-        if (write(fd, "ROA ERR\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    }
-
-    int ret = find_login(uid);
-    if (ret == NOT_FOUND) {
-        if (write(fd, "ROA NLG\n", 8) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-    } else if (ret == ERROR) {
-        printf("ERROR\n");
-    } else if (ret == SUCCESS) {
-        char ext_pwd[USER_PWD_LEN+1];
-        extract_password(uid, ext_pwd);
-        if (strcmp(pwd, ext_pwd)) {
-            if (write(fd, "ROA ERR\n", 8) == -1) {
-                printf("ERROR\n");
-                return;
-            }
-        }
-        
-        if (next_aid > 999) {
-            if (write(fd, "ROA NOK\n", 8) == -1) {
-                printf("ERROR\n");
-                return;
-            }
-        }
-
-        create_auction_dir(next_aid);
-        create_start_file(next_aid, uid, name, fname, start_value, timeactive);
-        add_user_auction(next_aid, uid);
-
-        ssize_t remaining = atol(fsize);
-        ssize_t to_write = (msg + received) - first_bytes;
-        to_write = (remaining > to_write) ? to_write : remaining;
-        create_asset_file(next_aid, fd, fname, atol(fsize), first_bytes, to_write);
-
-        char buffer[BUFSIZ_S];
-        int printed;
-        if ((printed = sprintf(buffer, "ROA OK %03d\n", next_aid)) == -1) {
-            printf("ERROR in sprintf\n");
-            return;
-        }
-        if (write_all_bytes(fd, buffer, printed) == -1) {
-            printf("ERROR\n");
-            return;
-        }
-        next_aid++;
     }
 }
 
@@ -689,23 +607,141 @@ void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrl
 }
 
 void tcp_command_choser(int fd) {
-    char buffer[BUFSIZ_L];
-    memset(buffer, 0, BUFSIZ_L);
-    ssize_t received = read(fd, buffer, BUFSIZ_L);
+    char buffer[BUFSIZ_L+1];
+    ssize_t received = read_all_bytes(fd, buffer, BUFSIZ_L);
     if (received == -1) {
         perror("read");
         return;
     }
-    //buffer[received] = '\0';
-    //printf("[TCP] Received %ld bytes: %s", received, buffer);
+    buffer[received] = '\0';
+    char *ptr = buffer;
+    char *delim = " ";
+
+    char *request = strsep(&ptr, delim);
     
-    if (startswith("OPA", buffer) == 3) {
-        response_open(fd, buffer, received);
-    } else if (startswith("CLS", buffer) == 3) {
+    if (!strcmp(request, "OPA")) {
+        char *uid = strsep(&ptr, delim);
+        char *pwd = strsep(&ptr, delim);
+        char *name = strsep(&ptr, delim);
+        char *start_value = strsep(&ptr, delim);
+        char *timeactive = strsep(&ptr, delim);
+        char *fname = strsep(&ptr, delim);
+        char *fsize = strsep(&ptr, delim);
+        char *fdata = ptr;
+
+        if (!validate_user_id(uid) || !validate_user_password(pwd) ||
+                !validate_auction_name(name) || !validate_auction_value(start_value) ||
+                !validate_auction_duration(timeactive) || !validate_file_name(fname) ||
+                !validate_file_size(fsize) || (ptr == NULL)) {
+            write_all_bytes(fd, "ROA ERR\n", 4);
+            return;
+        }
+
+        FILE *file = fopen(fname, "w");
+        if (!file) {
+            printf(ERROR_OPEN);
+            return;
+        }
+
+        received = (buffer + received) - fdata;
+
+        ssize_t remaining = atoi(fsize);
+        ssize_t to_write = (remaining < received) ? remaining : received;
+        if (fwrite(fdata, 1, to_write, file) < (size_t) to_write) {
+            fclose(file);
+            printf(ERROR_SEND_MSG);
+            return;
+        }
+
+        if ((remaining -= to_write) > 0) {
+            remaining = read_file_data(fd, file, remaining);
+            fclose(file);
+            if (remaining > 0) {
+                write_all_bytes(fd, "ROA ERR\n", 4);
+                return;
+            }
+
+            if (remaining == -1) {
+                printf("An error occured while transferring data from socket to file.\n");
+                return;
+            }
+
+            received = read(fd, buffer, BUFSIZ_S);
+            if (received == -1) {
+                printf(ERROR_RECV_MSG);
+                remove(fname);
+                return;
+            }
+
+            fdata = buffer;
+        } else {
+            fclose(file);
+            fdata += to_write;
+            received -= to_write;
+        }
+
+        if (received != 1) {
+            write_all_bytes(fd, "ROA ERR\n", 4);
+            remove(fname);
+            return;
+        }
+
+        if (*fdata != '\n') {
+            write_all_bytes(fd, "ROA ERR\n", 4);
+            remove(fname);
+            return;
+        }
+
+        start_info_t auction;
+        strcpy(auction.uid, uid);
+        strcpy(auction.name, name);
+        strcpy(auction.value, start_value);
+        strcpy(auction.timeactive, timeactive);
+        strcpy(auction.fname, fname);
+        
+        int aid = create_auction(pwd, &auction);
+
+        if (aid > 0) {
+            int printed = sprintf(buffer, "ROA OK %03d\n", aid);
+            write_all_bytes(fd, buffer, printed);
+        } else if (aid == USER_NOT_LOGGED_IN) {
+            write_all_bytes(fd, "ROA NLG\n", 8);
+        } else {
+            write_all_bytes(fd, "ROA NOK\n", 8);
+        }
+    } else if (!strcmp(request, "CLS")) {
+        char *uid = strsep(&ptr, delim);
+        char *pwd = strsep(&ptr, delim);
+        char *aid = strsep(&ptr, "\n");
+        
+        if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
+                !validate_auction_id(aid)) {
+            write_all_bytes(fd, "ERR\n", 4);
+            return;
+        }
+
         response_close(fd, buffer);
-    } else if (startswith("SAS", buffer) == 3) {
+    } else if (!strcmp(request, "SAS")) {
+        char *aid = strsep(&ptr, "\n");
+        
+        if ((*ptr != '\0') || !validate_auction_id(aid)) {
+            write_all_bytes(fd, "ERR\n", 4);
+            return;
+        }
+
         response_show_asset(fd, buffer);
-    } else if (startswith("BID", buffer) == 3) {
+    } else if (!strcmp(request, "BID")) {
+        char *uid = strsep(&ptr, delim);
+        char *pwd = strsep(&ptr, delim);
+        char *aid = strsep(&ptr, delim);
+        char *value = strsep(&ptr, "\n");
+        
+        if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
+                !validate_auction_id(aid) || !validate_auction_value(value)) {
+            write_all_bytes(fd, "ERR\n", 4);
+            return;
+        }
+
         response_bid(fd, buffer);
     } else {
         write_all_bytes(fd, "ERR\n", 4);
@@ -780,7 +816,6 @@ void udp_command_choser(int fd) {
         perror("connect");
         return;
     }
-    
 }
 
 void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {

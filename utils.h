@@ -1,6 +1,10 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 
+#define BUFSIZ_S 256
+#define BUFSIZ_M 2048
+#define BUFSIZ_L 6144
+
 #define ERROR_COMMAND_NOT_FOUND \
     "Unknown command. Type 'help' for a list of commands available.\n"
 #define ERROR_ALREADY_LOGGED_IN "You are already logged in.\n"
@@ -20,17 +24,17 @@
 #define ERROR_FGETS "[Error] Could not read from stdin.\n"
 #define ERROR_SIGACTION "[Error] Could not modify signal behaviour.\n"
 
-void panic(char *str);
+#define DEBUG 1
 
-int udp_socket();
-
-int tcp_socket();
-
-int set_socket_rcvtimeout(int fd, int seconds);
+void debug(char *str, ...);
 
 ssize_t read_all_bytes(int fd, char *buffer, ssize_t nbytes);
 
 ssize_t write_all_bytes(int fd, char *buffer, ssize_t nbytes);
+
+ssize_t read_file_data(int sockfd, FILE *file, off_t nbytes);
+
+ssize_t write_file_data(int sockfd, FILE *file, off_t nbytes);
 
 int startswith(char *prefix, char *str);
 

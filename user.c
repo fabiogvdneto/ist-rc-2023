@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L // struct sigaction, SA_RESTART
+#define _DEFAULT_SOURCE // strsep()
 
 #include <sys/types.h>
 #include <ctype.h>
@@ -40,8 +41,6 @@
 #define INVALID_DATE "The date must be in the format YYYY-MM-DD.\n"
 #define INVALID_TIME "The time must be in the format HH:MM:SS.\n"
 #define ASSET_FILE_NOT_FOUND "The asset file could not be found.\n"
-
-#define DEBUG 1
 
 #define FLAG_PORT "-p"
 #define FLAG_IP "-n"
@@ -380,6 +379,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     if (startswith("ROA OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
+            printf("%s %ld\n", buffer, received);
             return;
         }
 
@@ -387,6 +387,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         char *aid = buffer+7;
         if (!validate_auction_id(aid)) {
             printf(INVALID_PROTOCOL_MSG);
+            printf("%s %ld\n", buffer, received);
             return;
         }
 
@@ -401,6 +402,7 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         printf("Received general error message.\n");
     } else {
         printf(INVALID_PROTOCOL_MSG);
+        printf("%s %ld\n", buffer, received);
     }
 }
 
@@ -740,35 +742,25 @@ void command_show_asset(char *aid) {
         printf("No file to be sent or error ocurred.\n");
     } else if (startswith("RSA OK ", buffer) == 7) {
         // Message: RSA OK <fname> <fsize> <fdata>
-        char *fname = buffer + 7;
-        
-        char *fsize = strchr(fname, ' ');
-        if (!fsize) {
-            printf("For some unknown reason, we did not receive the file size.\n");
-            close(serverfd);
-            return;
-        }
-        *fsize++ = '\0';
-        off_t fsize_value = atol(fsize);
+        char *fdata = buffer+7;
+        char *fname = strsep(&fdata, " ");
+        char *fsize = strsep(&fdata, " ");
 
-        char *fdata = strchr(fsize, ' ');
         if (!fdata) {
-            printf("For some unknown reason, we did not receive the file data.\n");
             close(serverfd);
+            printf(INVALID_PROTOCOL_MSG);
             return;
         }
-        *fdata++ = '\0';
 
         if (!validate_file_name(fname)) {
             close(serverfd);
-            printf("%s\n", fname);
-            printf("Received invalid asset name from auction server.\n");
+            printf("Received invalid asset name from auction server: %s\n", fname);
             return;
         }
 
         if (!validate_file_size(fsize)) {
             close(serverfd);
-            printf("Received invalid file size from auction server.\n");
+            printf("Received invalid file size from auction server: %s\n", fsize);
             return;
         }
 
@@ -785,64 +777,65 @@ void command_show_asset(char *aid) {
             return;
         }
 
-        int fd = open(pathname, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
-        if (fd == -1) {
+        FILE *file = fopen(pathname, "w");
+        if (!file) {
             close(serverfd);
             printf(ERROR_OPEN);
             return;
         }
 
-        ssize_t remaining = fsize_value;
-        ssize_t to_write = (buffer + received) - fdata;
+        received = (buffer + received) - fdata;
 
-        to_write = (remaining > to_write) ? to_write : remaining;
-
-        ssize_t written = write_all_bytes(fd, fdata, to_write);
-        if (written == -1) {
+        ssize_t remaining = atoi(fsize);
+        ssize_t to_write = (remaining < received) ? remaining : received;
+        if (fwrite(fdata, 1, to_write, file) < (size_t) to_write) {
             close(serverfd);
-            close(fd);
+            fclose(file);
             printf(ERROR_SEND_MSG);
             return;
         }
 
-        while (remaining -= written) {
-            to_write = (remaining > BUFSIZ_L) ? BUFSIZ_L : remaining;
-            to_write = read_all_bytes(serverfd, buffer, to_write);
-            if (to_write == -1) {
-                close(serverfd);
-                close(fd);
+        if ((remaining -= to_write) > 0) {
+            remaining = read_file_data(serverfd, file, remaining);
+            fclose(file);
+            if (remaining > 0) {
+                printf("Received less bytes than expected (-%ld bytes).\n", remaining);
+                return;
+            }
+
+            if (remaining == -1) {
+                printf("An error occured while transferring data from socket to file.\n");
+                return;
+            }
+
+            received = read(serverfd, buffer, BUFSIZ_S);
+            if (received == -1) {
                 printf(ERROR_RECV_MSG);
+                remove(pathname);
                 return;
             }
 
-            if (to_write == 0) {
-                close(serverfd);
-                close(fd);
-                printf(INVALID_PROTOCOL_MSG);
-                return;
-            }
-
-            if ((written = write_all_bytes(fd, buffer, to_write)) == -1) {
-                close(serverfd);
-                close(fd);
-                printf(ERROR_SEND_MSG);
-                return;
-            }
+            fdata = buffer;
+        } else {
+            fclose(file);
+            fdata += to_write;
+            received -= to_write;
         }
 
-        if ((received = read_all_bytes(serverfd, buffer, BUFSIZ_S)) == -1) {
-            printf(ERROR_RECV_MSG);
+        close(serverfd);
+        if (received != 1) {
+            printf("Expected 1 byte (end of line) but received %ld bytes.\n", received);
+            remove(pathname);
             return;
         }
 
-        if ((received != 1) || (*buffer != '\n')) {
-            printf(INVALID_PROTOCOL_MSG);
+        if (*fdata != '\n') {
+            printf("Received invalid message from server: no end of line character.\n");
+            remove(pathname);
             return;
         }
         
-        close(fd);
-        close(serverfd);
-        printf("Download complete: %s, %ld bytes.\n", pathname, fsize_value);
+        printf("Download complete: %s (total of %s bytes).\n", pathname, fsize);
     } else if (startswith("RSA ERR\n", buffer) == received) {
         printf("Received error message.\n");
     } else if (startswith("ERR\n", buffer) == received) {
@@ -1155,14 +1148,14 @@ void handle_signals() {
     act.sa_flags = SA_RESTART;
     act.sa_handler = SIG_IGN;
 
-    if (sigaction(SIGPIPE, &act, NULL) == SIG_ERR) {
+    if (sigaction(SIGPIPE, &act, NULL) == -1) {
         printf(ERROR_SIGACTION);
         exit(EXIT_FAILURE);
     }
 
     act.sa_handler = stop;
 
-    if (sigaction(SIGINT, &act, NULL) == SIG_ERR) {
+    if (sigaction(SIGINT, &act, NULL) == -1) {
         printf(ERROR_SIGACTION);
         exit(EXIT_FAILURE);
     }

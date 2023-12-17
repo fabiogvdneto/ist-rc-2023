@@ -70,13 +70,16 @@ int validate_file_size(char *str) {
 int validate_auction_id(char *str) {
     if (!str) return 0;
 
+    int zeros = 0;
     for (int i = 0; i < AUCTION_ID_LEN; i++) {
         if (!isdigit(*str++)) {
             return 0;
         }
+
+        if (*str == '0') zeros++;
     }
 
-    return (*str == '\0');
+    return (zeros != 3) && (*str == '\0');
 }
 
 int validate_auction_name(char *str) {

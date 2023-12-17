@@ -9,9 +9,14 @@
 #define BUFSIZ_M 2048
 #define BUFSIZ_L 6144
 
-#define NOT_FOUND 2
-#define SUCCESS 1
+#define SUCCESS 0
 #define ERROR -1
+#define NOT_FOUND -2
+
+#define USER_NOT_LOGGED_IN -2
+#define USER_NOT_REGISTERED -3
+#define WRONG_PASSWORD -4
+#define REACHED_AUCTION_MAX -5
 
 #define CLOSED 3
 #define OPEN 4
@@ -109,5 +114,7 @@ int extract_auction_start_info(char *aid, start_info_t *start_info);
 int extract_auctions_bids_info(char *aid, bid_info_t *bids);
 
 int extract_auction_end_info(char *aid, end_info_t *end_info);
+
+int create_auction(char *password, start_info_t *auction);
 
 #endif
