@@ -665,6 +665,8 @@ int extract_auction_end_info(char *aid, end_info_t *end_info) {
     return SUCCESS;
 }
 
+/* ---- Auctions ---- */
+
 int create_auction_dirs(int aid) {
     char pathname[BUFSIZ_S];
     sprintf(pathname, "AUCTIONS/%03d", aid);
@@ -698,12 +700,9 @@ int create_auction_start_file(int aid, start_info_t *auction) {
         return ERROR;
     }
 
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
+    time_t rawtime = time(NULL);
 
-    strftime(buffer, BUFSIZ_S, "%Y-%m-%d %H:%M:%S", timeinfo);
+    strftime(buffer, BUFSIZ_S, "%Y-%m-%d %H:%M:%S", localtime(&rawtime));
     fprintf(file, "%s %s %s %s %s %s %ld",
         auction->uid, auction->name, auction->fname, auction->value,
         auction->timeactive, buffer, rawtime

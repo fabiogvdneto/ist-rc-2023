@@ -59,12 +59,9 @@ int next_aid = 1;
 
 /* ---- Responses ---- */
 
-void response_login(int fd, char *uid, char* pwd) {
+void response_login(int fd, char *uid, char *pwd) {
     if (!validate_user_id(uid) || !validate_user_password(pwd)) {
-        if (send(fd, "RLI ERR\n", 8, 0) == -1) {
-            printf("ERROR\n");
-            return;
-        }
+        send(fd, "RLI ERR\n", 8, 0);
         return;
     }
 
