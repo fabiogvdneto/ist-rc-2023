@@ -379,7 +379,6 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
     if (startswith("ROA OK ", buffer) == 7) {
         if (!validate_protocol_message(buffer, received)) {
             printf(INVALID_PROTOCOL_MSG);
-            printf("%s %ld\n", buffer, received);
             return;
         }
 
@@ -387,7 +386,6 @@ void command_open(char *name, char *fname, char *start_value, char *duration) {
         char *aid = buffer+7;
         if (!validate_auction_id(aid)) {
             printf(INVALID_PROTOCOL_MSG);
-            printf("%s %ld\n", buffer, received);
             return;
         }
 
