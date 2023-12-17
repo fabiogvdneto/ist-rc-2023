@@ -678,9 +678,7 @@ int login(char *uid, char *pwd) {
     int status = exists_user_login_file(uid);
 
     if (status == ERROR) return ERROR;
-    if (status == SUCCESS) {
-        return ERR_USER_ALREADY_LOGGED_IN;
-    }
+    if (status == SUCCESS) return ERR_USER_ALREADY_LOGGED_IN;
 
     switch (exists_user_password_file(uid)) {
         case ERROR:
@@ -765,15 +763,26 @@ int create_auction_hosted_file(int aid, char *uid) {
     return SUCCESS;
 }
 
+/**
+ * Returns:
+ * - ERROR if a general error occurred.
+ * - ERR_WRONG_PASSWORD if user password does not match.
+ * - ERR_REACHED_AUCTION_MAX if the number of auctions reached its maximum.
+ * - ERR_USER_NOT_LOGGED_IN if user is not logged in.
+ * - SUCCESS if auction was successfully created.
+*/
 int create_auction(char *password, start_info_t *auction) {
     int ret = exists_user_login_file(auction->uid);
-    if (ret != SUCCESS) {
+
+    if (ret == ERROR) return ERROR;
+    if (ret == NOT_FOUND) {
         unlink(auction->fname);
-        return ret;
+        return ERR_USER_NOT_LOGGED_IN;
     }
 
     char buffer[BUFSIZ_S];
     ret = extract_password(auction->uid, buffer);
+    
     if (ret != SUCCESS) {
         unlink(auction->fname);
         return ret;
