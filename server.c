@@ -786,7 +786,6 @@ void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
 
     close(fd_udp);
     close(fd_tcp);
-
 }
 
 /* ---- Initialization ---- */
