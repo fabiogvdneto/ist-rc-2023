@@ -479,7 +479,7 @@ void print_verbose(char *uid, char *type, struct sockaddr *addr, socklen_t addrl
     }
 }
 
-void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_addrlen) {
+void tcp_command_choser(int fd, struct sockaddr *client_addr, socklen_t client_addrlen) {
     char buffer[BUFSIZ_L+1];
     ssize_t received = read_all_bytes(fd, buffer, BUFSIZ_L);
     if (received == -1) {
@@ -501,7 +501,7 @@ void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_ad
         char *fname = strsep(&ptr, delim);
         char *fsize = strsep(&ptr, delim);
         char *fdata = ptr;
-        print_verbose(uid, request, &client_addr, client_addrlen);
+        print_verbose(uid, request, client_addr, client_addrlen);
 
         if (!validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_name(name) || !validate_auction_value(start_value) ||
@@ -587,7 +587,7 @@ void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_ad
         char *uid = strsep(&ptr, delim);
         char *pwd = strsep(&ptr, delim);
         char *aid = strsep(&ptr, "\n");
-        print_verbose(uid, request, &client_addr, client_addrlen);
+        print_verbose(uid, request, client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_id(aid)) {
@@ -598,7 +598,7 @@ void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_ad
         response_close(fd, uid, pwd, aid);
     } else if (!strcmp(request, "SAS")) {
         char *aid = strsep(&ptr, "\n");
-        print_verbose(NULL, request, &client_addr, client_addrlen);
+        print_verbose(NULL, request, client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_auction_id(aid)) {
             write_all_bytes(fd, "ERR\n", 4);
@@ -611,7 +611,7 @@ void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_ad
         char *pwd = strsep(&ptr, delim);
         char *aid = strsep(&ptr, delim);
         char *value = strsep(&ptr, "\n");
-        print_verbose(uid, request, &client_addr, client_addrlen);
+        print_verbose(uid, request, client_addr, client_addrlen);
         
         if ((*ptr != '\0') || !validate_user_id(uid) || !validate_user_password(pwd) ||
                 !validate_auction_id(aid) || !validate_auction_value(value)) {
@@ -625,6 +625,8 @@ void tcp_command_choser(int fd, struct sockaddr client_addr, socklen_t client_ad
     }
 }
 
+#include <err.h>
+
 void udp_command_choser(int fd) {
     struct sockaddr client_addr;
     socklen_t client_addrlen = sizeof(client_addr);
@@ -633,6 +635,7 @@ void udp_command_choser(int fd) {
     ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, &client_addr, &client_addrlen);
     if (received == -1) {
         perror("recvfrom");
+        err(EXIT_FAILURE, NULL);
         return;
     }
 
@@ -695,106 +698,107 @@ void udp_command_choser(int fd) {
     }
 }
 
-void client_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
-    int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd_udp == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
+void udp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
+    struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
+
+    int serverfd;
+    while ((serverfd = socket(AF_INET, SOCK_DGRAM, 0)) != -1) {
+        int enable = 1;
+
+        if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+            perror("setsockopt(SO_REUSEADDR)");
+            exit(EXIT_FAILURE);
+        }
+
+        if (bind(serverfd, server_addr, server_addrlen) == -1) {
+            perror("bind");
+            exit(EXIT_FAILURE);
+        }
+
+        if (setsockopt(serverfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+            perror("setsockopt");
+            exit(EXIT_FAILURE);
+        }
+
+        udp_command_choser(serverfd);
+        close(serverfd);
     }
-    
-    int fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_tcp == -1) {
+
+    perror("socket");
+}
+
+void tcp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
+    int serverfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (serverfd == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
     int enable = 1;
-    if (setsockopt(fd_udp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+
+    if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
         perror("setsockopt(SO_REUSEADDR)");
         exit(EXIT_FAILURE);
     }
 
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
-        perror("setsockopt(SO_REUSEADDR)");
-        exit(EXIT_FAILURE);
-    }
-
-    struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
-    if (setsockopt(fd_udp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(fd_udp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(fd_tcp, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
-    if (bind(fd_udp, server_addr, server_addrlen) == -1) {
+    if (bind(serverfd, server_addr, server_addrlen) == -1) {
         perror("bind");
         exit(EXIT_FAILURE);
     }
 
-    if (bind(fd_tcp, server_addr, server_addrlen) == -1) {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
-
-    if (listen(fd_tcp, BACKLOG) == -1) {
+    if (listen(serverfd, BACKLOG) == -1) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
 
-    fd_set rfds;
-    while (1) {
-        FD_ZERO(&rfds);
-        FD_SET(fd_udp, &rfds);
-        FD_SET(fd_tcp, &rfds);
+    struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
 
-        if (select(FD_SETSIZE, &rfds, NULL, NULL, NULL) == -1) {
-            perror("select");
-            break;
+    struct sockaddr client_addr;
+    socklen_t client_addrlen = sizeof(client_addr);
+
+    int clientfd;
+
+    while ((clientfd = accept(serverfd, &client_addr, &client_addrlen)) != -1) {
+
+        if (setsockopt(clientfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
+            perror("setsockopt");
+            exit(EXIT_FAILURE);
         }
 
-        if (FD_ISSET(fd_tcp, &rfds)) {
-            struct sockaddr client_addr;
-            socklen_t client_addrlen = sizeof(client_addr);
-            int new_fd = accept(fd_tcp, &client_addr, &client_addrlen);
-            if (new_fd == -1) {
-                perror("accept");
-                break;
-            }
-
-            tcp_command_choser(new_fd, client_addr, client_addrlen);
-            close(new_fd);
+        if (setsockopt(clientfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
+            perror("setsockopt");
+            exit(EXIT_FAILURE);
         }
 
-        if (FD_ISSET(fd_udp, &rfds)) {
-            udp_command_choser(fd_udp);
-        }
+        tcp_command_choser(clientfd, &client_addr, client_addrlen);
+        close(clientfd);
     }
 
-    close(fd_udp);
-    close(fd_tcp);
+    perror("accept");
+    close(serverfd);
 }
 
 /* ---- Initialization ---- */
 
+void handle_signals() {
+    struct sigaction act = {
+        .sa_handler = SIG_IGN
+    };
+
+    sigemptyset(&act.sa_mask);
+
+    if (sigaction(SIGCHLD, &act, NULL) == -1) {
+        printf(ERROR_SIGACTION);
+        exit(EXIT_FAILURE);
+    }
+}
+
 int main(int argc, char **argv) {
     struct sockaddr_in server_addr_in;
 
-    server_addr_in.sin_addr.s_addr = INADDR_ANY;
     server_addr_in.sin_family = AF_INET;
+    server_addr_in.sin_addr.s_addr = INADDR_ANY;
     server_addr_in.sin_port = htons(DEFAULT_PORT);
 
     for (int i = 1; i < argc; i++) {
@@ -816,6 +820,19 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    handle_signals();
     next_aid = update_next_aid();
-    client_listener((struct sockaddr*) &server_addr_in, sizeof(server_addr_in));
+    switch (fork()) {
+        case -1:
+            perror("fork");
+            exit(EXIT_FAILURE);
+        case 0:
+            // child process
+            udp_listener((struct sockaddr*) &server_addr_in, sizeof(server_addr_in));
+            break;
+        default:
+            // current process
+            tcp_listener((struct sockaddr*) &server_addr_in, sizeof(server_addr_in));
+            break;
+    }
 }
