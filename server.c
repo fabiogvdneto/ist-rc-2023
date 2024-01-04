@@ -44,9 +44,6 @@
 
 int verbose = 0;
 
-/* ---- Next Auction ID */
-int next_aid = 1;
-
 /* ---- Responses ---- */
 
 void response_login(int fd, char *uid, char *pwd) {
@@ -625,8 +622,6 @@ void tcp_command_choser(int fd, struct sockaddr *client_addr, socklen_t client_a
     }
 }
 
-#include <err.h>
-
 void udp_command_choser(int fd) {
     struct sockaddr client_addr;
     socklen_t client_addrlen = sizeof(client_addr);
@@ -635,7 +630,6 @@ void udp_command_choser(int fd) {
     ssize_t received = recvfrom(fd, buffer, BUFSIZ_S, 0, &client_addr, &client_addrlen);
     if (received == -1) {
         perror("recvfrom");
-        err(EXIT_FAILURE, NULL);
         return;
     }
 
@@ -647,6 +641,16 @@ void udp_command_choser(int fd) {
     if (!validate_protocol_message(buffer, received)) {
         send(fd, "ERR\n", 4, 0);
         return;
+    }
+
+    switch (fork()) {
+        case -1:
+            perror("fork");
+            return;
+        case 0:
+            break;
+        default:
+            return;
     }
     
     char *delim = " \n";
@@ -699,13 +703,11 @@ void udp_command_choser(int fd) {
 }
 
 void udp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
-    struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT_SECONDS, .tv_usec = 0 };
-
     int serverfd;
-    while ((serverfd = socket(AF_INET, SOCK_DGRAM, 0)) != -1) {
-        int enable = 1;
 
-        if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+    while ((serverfd = socket(AF_INET, SOCK_DGRAM, 0)) != -1) {
+
+        if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &serverfd, sizeof(int)) == -1) {
             perror("setsockopt(SO_REUSEADDR)");
             exit(EXIT_FAILURE);
         }
@@ -715,29 +717,21 @@ void udp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
             exit(EXIT_FAILURE);
         }
 
-        if (setsockopt(serverfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) == -1) {
-            perror("setsockopt");
-            exit(EXIT_FAILURE);
-        }
-
         udp_command_choser(serverfd);
-        close(serverfd);
     }
 
     perror("socket");
+    close(serverfd);
 }
 
 void tcp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
     int serverfd = socket(AF_INET, SOCK_STREAM, 0);
-
     if (serverfd == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    int enable = 1;
-
-    if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+    if (setsockopt(serverfd, SOL_SOCKET, SO_REUSEADDR, &serverfd, sizeof(int)) == -1) {
         perror("setsockopt(SO_REUSEADDR)");
         exit(EXIT_FAILURE);
     }
@@ -760,7 +754,6 @@ void tcp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
     int clientfd;
 
     while ((clientfd = accept(serverfd, &client_addr, &client_addrlen)) != -1) {
-
         if (setsockopt(clientfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
             perror("setsockopt");
             exit(EXIT_FAILURE);
@@ -771,7 +764,16 @@ void tcp_listener(struct sockaddr *server_addr, socklen_t server_addrlen) {
             exit(EXIT_FAILURE);
         }
 
-        tcp_command_choser(clientfd, &client_addr, client_addrlen);
+        switch (fork()) {
+            case -1:
+                perror("fork");
+                exit(EXIT_FAILURE);
+            case 0:
+                tcp_command_choser(clientfd, &client_addr, client_addrlen);
+                close(clientfd);
+                exit(EXIT_SUCCESS);
+        }
+
         close(clientfd);
     }
 
@@ -821,7 +823,6 @@ int main(int argc, char **argv) {
     }
 
     handle_signals();
-    next_aid = update_next_aid();
     switch (fork()) {
         case -1:
             perror("fork");

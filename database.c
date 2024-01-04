@@ -25,8 +25,6 @@
 /* Misc */
 #include "utils.h"
 
-int next_auction_id = 1;
-
 // recursively erase a dir
 int erase_dir(char *dirname) {
     DIR *d = opendir(dirname);
@@ -288,7 +286,7 @@ long get_max_bid_value(char *aid) {
 }
 
 // get the max auction ID existent to determine the ID of the next auction
-int update_next_aid() {
+int get_next_aid() {
     struct dirent **filelist;
     int n_entries, len;
     int max_auction_id = 0;
@@ -307,7 +305,6 @@ int update_next_aid() {
     }
     free(filelist);
 
-    next_auction_id = max_auction_id + 1;
     return max_auction_id + 1;
 }
 
@@ -794,6 +791,8 @@ int create_auction(char *password, start_info_t *auction) {
         unlink(auction->fname);
         return ERR_WRONG_PASSWORD;
     }
+
+    int next_auction_id = get_next_aid();
 
     if (next_auction_id == 1000) {
         unlink(auction->fname);

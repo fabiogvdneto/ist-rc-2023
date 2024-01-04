@@ -82,7 +82,7 @@ int check_auction_state(char *aid);
 
 long get_max_bid_value(char *aid);
 
-int update_next_aid();
+int get_next_aid();
 
 int add_bid(char *uid, char *aid, long value);
 
