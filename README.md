@@ -1,5 +1,10 @@
 # Auctions
 
+> The goal of this project is to implement a simple auction platform.
+> Users can open (host) an auction to sell some asset, and close it, as well list ongoing auctions and make bids.
+> The development of the project requires implementing an Auction Server (AS) and a User Application (User).
+> The AS and multiple User application instances are intended to operate simultaneously on different machines connected to the Internet.
+
 ### Commands
 
 - `login <uid> <password>`
