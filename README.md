@@ -1,5 +1,13 @@
 # Auctions
 
+[PT]  
+Projeto desenvolvido no âmbito da cadeira Redes de Computadores (RC) do Instituto Superior Técnico (IST).
+O enunciado pode ser encontrado na diretoria raiz do repositório (statement.pdf).
+
+[EN]  
+Project developed within the scope of the Computer Networks course of Instituto Superior Tecnico (IST).
+The statement can be found in the root directory of this repository (statement.pdf).
+
 > The goal of this project is to implement a simple auction platform.
 > Users can open (host) an auction to sell some asset, and close it, as well list ongoing auctions and make bids.
 > The development of the project requires implementing an Auction Server (AS) and a User Application (User).
